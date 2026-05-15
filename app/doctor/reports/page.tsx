@@ -1,0 +1,234 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  Box, Typography, Card, CardContent, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, Chip, TextField, InputAdornment,
+  CircularProgress, Button, ButtonGroup, Grid,
+} from "@mui/material";
+import { SearchOutlined, TodayOutlined, DateRangeOutlined, ClearOutlined } from "@mui/icons-material";
+import Sidebar from "@/components/Sidebar";
+import { apiRequest } from "@/lib/api";
+
+interface Report {
+  id: number;
+  date: string;
+  patient_name: string;
+  patient_age: number;
+  patient_weight: number;
+  referred_by: string | null;
+  total_price: number;
+  status: string;
+}
+
+type FilterMode = "all" | "today" | "range";
+
+export default function DoctorReportsPage() {
+  const [reports, setReports] = useState<Report[]>([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  useEffect(() => {
+    apiRequest("/api/reports")
+      .then((r) => r.json())
+      .then((d) => { setReports(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const filtered = reports.filter((r) => {
+    // Text search
+    const matchesSearch =
+      r.patient_name.toLowerCase().includes(search.toLowerCase()) ||
+      (r.referred_by || "").toLowerCase().includes(search.toLowerCase());
+
+    // Date filter
+    let matchesDate = true;
+    if (filterMode === "today") {
+      matchesDate = r.date === today;
+    } else if (filterMode === "range") {
+      if (startDate) matchesDate = r.date >= startDate;
+      if (endDate && matchesDate) matchesDate = r.date <= endDate;
+    }
+
+    return matchesSearch && matchesDate;
+  });
+
+  const filteredRevenue = filtered.reduce((s, r) => s + r.total_price, 0);
+
+  return (
+    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+      <Sidebar role="doctor" email="doctor@mylab.com" />
+      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }}>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h5">All Reports</Typography>
+          <Typography variant="body2" color="text.secondary">{reports.length} total reports</Typography>
+        </Box>
+
+        <Card>
+          <CardContent sx={{ pb: 1 }}>
+            {/* Filters Row */}
+            <Grid container spacing={2} alignItems="center" sx={{ mb: 2 }}>
+              {/* Quick filters */}
+              <Grid item xs={12} md="auto">
+                <ButtonGroup size="small" variant="outlined">
+                  <Button
+                    onClick={() => setFilterMode("all")}
+                    variant={filterMode === "all" ? "contained" : "outlined"}
+                  >
+                    All
+                  </Button>
+                  <Button
+                    onClick={() => setFilterMode("today")}
+                    variant={filterMode === "today" ? "contained" : "outlined"}
+                    startIcon={<TodayOutlined sx={{ fontSize: 16 }} />}
+                  >
+                    Today
+                  </Button>
+                  <Button
+                    onClick={() => setFilterMode("range")}
+                    variant={filterMode === "range" ? "contained" : "outlined"}
+                    startIcon={<DateRangeOutlined sx={{ fontSize: 16 }} />}
+                  >
+                    Date Range
+                  </Button>
+                </ButtonGroup>
+              </Grid>
+
+              {/* Date range inputs */}
+              {filterMode === "range" && (
+                <>
+                  <Grid item xs={6} sm={4} md={2}>
+                    <TextField
+                      type="date"
+                      size="small"
+                      label="From"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      fullWidth
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={4} md={2}>
+                    <TextField
+                      type="date"
+                      size="small"
+                      label="To"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      fullWidth
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                  {(startDate || endDate) && (
+                    <Grid item xs="auto">
+                      <Button
+                        size="small"
+                        onClick={() => { setStartDate(""); setEndDate(""); }}
+                        startIcon={<ClearOutlined sx={{ fontSize: 14 }} />}
+                        sx={{ textTransform: "none" }}
+                      >
+                        Clear
+                      </Button>
+                    </Grid>
+                  )}
+                </>
+              )}
+
+              {/* Search */}
+              <Grid item xs={12} md sx={{ display: "flex", justifyContent: "flex-end" }}>
+                <TextField
+                  placeholder="Search patient or referral…"
+                  size="small"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  sx={{ width: 260 }}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><SearchOutlined sx={{ fontSize: 16 }} /></InputAdornment> }}
+                />
+              </Grid>
+            </Grid>
+
+            {/* Summary chips */}
+            <Box sx={{ display: "flex", gap: 1.5, mb: 1 }}>
+              <Chip
+                label={`${filtered.length} reports`}
+                size="small"
+                variant="outlined"
+                sx={{ fontSize: 12 }}
+              />
+              <Chip
+                label={`₹${filteredRevenue.toFixed(0)} revenue`}
+                size="small"
+                color="success"
+                variant="outlined"
+                sx={{ fontSize: 12 }}
+              />
+              {filterMode === "today" && (
+                <Chip label={`Date: ${new Date().toLocaleDateString("en-IN")}`} size="small" color="primary" variant="outlined" sx={{ fontSize: 12 }} />
+              )}
+              {filterMode === "range" && (startDate || endDate) && (
+                <Chip
+                  label={`${startDate || "…"} → ${endDate || "…"}`}
+                  size="small" color="primary" variant="outlined" sx={{ fontSize: 12 }}
+                />
+              )}
+            </Box>
+          </CardContent>
+
+          {loading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
+              <CircularProgress size={32} />
+            </Box>
+          ) : (
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ "& th": { fontWeight: 600, color: "text.secondary", fontSize: 12, bgcolor: "#f8fafc" } }}>
+                    <TableCell>Report #</TableCell>
+                    <TableCell>Patient</TableCell>
+                    <TableCell>Age</TableCell>
+                    <TableCell>Weight</TableCell>
+                    <TableCell>Referred By</TableCell>
+                    <TableCell>Date</TableCell>
+                    <TableCell align="right">Amount</TableCell>
+                    <TableCell>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filtered.map((r) => (
+                    <TableRow key={r.id} hover sx={{ "& td": { fontSize: 13 } }}>
+                      <TableCell sx={{ color: "text.secondary", fontWeight: 500 }}>#{r.id}</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>{r.patient_name}</TableCell>
+                      <TableCell>{r.patient_age} yrs</TableCell>
+                      <TableCell>{r.patient_weight} kg</TableCell>
+                      <TableCell>{r.referred_by || <Typography variant="caption" color="text.disabled">—</Typography>}</TableCell>
+                      <TableCell>{new Date(r.date).toLocaleDateString("en-IN")}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700, color: "#00897b" }}>₹{r.total_price.toFixed(0)}</TableCell>
+                      <TableCell>
+                        <Chip label={r.status} size="small"
+                          color={r.status === "finalized" ? "success" : "default"}
+                          sx={{ fontSize: 11, height: 22 }}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filtered.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} align="center" sx={{ py: 5, color: "text.secondary" }}>
+                        {search || filterMode !== "all" ? "No reports match your filters" : "No reports yet"}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Card>
+      </Box>
+    </Box>
+  );
+}

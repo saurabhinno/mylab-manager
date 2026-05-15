@@ -1,0 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  font-family: 'Inter', sans-serif;
+  background: #f0f4f8;
+  color: #1a2332;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
+
+@media print {
+  body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @page { margin: 10mm; size: A4; }
+}

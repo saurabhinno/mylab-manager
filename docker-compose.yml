@@ -1,0 +1,56 @@
+version: '3.9'
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: mylab
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-ppassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  api:
+    build: ./express-api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: mylab
+      MYSQL_USER: root
+      MYSQL_PASSWORD: password
+      NODE_ENV: production
+      FRONTEND_URL: http://localhost:3001
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - api_uploads:/app/uploads
+
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4000
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      NODE_ENV: production
+    depends_on:
+      - api
+
+volumes:
+  db_data:
+  api_uploads:

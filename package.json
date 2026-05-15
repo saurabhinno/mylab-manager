@@ -1,0 +1,38 @@
+{
+  "name": "mylab",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.11.0",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.15.0",
+    "@mui/material": "^5.15.0",
+    "@mui/system": "^9.0.1",
+    "bcryptjs": "^2.4.3",
+    "cardinal": "^2.1.1",
+    "cookie": "^0.6.0",
+    "js-cookie": "^3.0.5",
+    "mysql2": "^3.6.0",
+    "next": "14.2.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "sequelize": "^6.21.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.2",
+    "@types/cookie": "^0.5.0",
+    "@types/js-cookie": "^3.0.2",
+    "@types/node": "^20.14.8",
+    "@types/react": "^18.3.4",
+    "@types/react-dom": "^18.3.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.5",
+    "typescript": "^5.6.2"
+  }
+}
