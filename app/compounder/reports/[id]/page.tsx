@@ -197,17 +197,7 @@ export default function ReportViewPage() {
         <Divider />
 
         {/* Footer */}
-        <Box sx={{ px: 4, py: 2.5, display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <Box>
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9 }}>TOTAL AMOUNT</Typography>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: "#00897b" }}>₹{report.total_price.toFixed(0)}</Typography>
-            <Chip
-              label={report.payment_status === "paid" ? "PAID" : "UNPAID"}
-              size="small"
-              color={report.payment_status === "paid" ? "success" : "error"}
-              sx={{ fontSize: 9, height: 18, mt: 0.5 }}
-            />
-          </Box>
+        <Box sx={{ px: 4, py: 2.5, display: "flex", justifyContent: "flex-end", alignItems: "flex-end" }}>
           <Box sx={{ textAlign: "center" }}>
             {report.doctor?.signature_image && (
               <Box component="img" src={`${API_URL}/uploads/${report.doctor.signature_image}`} alt="Signature" sx={{ height: 45, mb: 0.5, objectFit: "contain" }} />
