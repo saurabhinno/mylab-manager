@@ -196,6 +196,7 @@ export default function DoctorReportsPage() {
                     <TableCell>Date</TableCell>
                     <TableCell align="right">Amount</TableCell>
                     <TableCell>Status</TableCell>
+                    <TableCell align="center">View</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -210,15 +211,20 @@ export default function DoctorReportsPage() {
                       <TableCell align="right" sx={{ fontWeight: 700, color: "#00897b" }}>₹{r.total_price.toFixed(0)}</TableCell>
                       <TableCell>
                         <Chip label={r.status} size="small"
-                          color={r.status === "finalized" ? "success" : "default"}
-                          sx={{ fontSize: 11, height: 22 }}
+                          color={r.status === "finalized" ? "success" : r.status === "results_entered" ? "info" : "warning"}
+                          sx={{ fontSize: 10, height: 20 }}
                         />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Button size="small" variant="text" href={`/doctor/reports/${r.id}`} sx={{ fontSize: 11, minWidth: 0 }}>
+                          View
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} align="center" sx={{ py: 5, color: "text.secondary" }}>
+                      <TableCell colSpan={9} align="center" sx={{ py: 5, color: "text.secondary" }}>
                         {search || filterMode !== "all" ? "No reports match your filters" : "No reports yet"}
                       </TableCell>
                     </TableRow>

@@ -143,4 +143,22 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
   }
 });
 
+// Delete user (staff)
+router.delete("/users/:id", async (req: Request, res: Response) => {
+  try {
+    const user = await User.findByPk(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+    if (user.role === "doctor") {
+      return res.status(400).json({ error: "Cannot delete doctor account." });
+    }
+    await user.destroy();
+    return res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;

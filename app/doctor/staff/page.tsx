@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import {
   Box, Typography, Card, CardContent, TextField, Button,
   Alert, InputAdornment, IconButton, Grid, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, Chip,
+  TableCell, TableContainer, TableHead, TableRow, Chip, Tooltip,
 } from "@mui/material";
 import {
   PersonAddOutlined, EmailOutlined, LockOutlined,
-  VisibilityOutlined, VisibilityOffOutlined,
+  VisibilityOutlined, VisibilityOffOutlined, DeleteOutlined,
 } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
@@ -48,6 +48,19 @@ export default function StaffPage() {
       setAlert({ type: "error", msg: data.error || "Failed to create account." });
     }
     setTimeout(() => setAlert(null), 5000);
+  }
+
+  async function handleDelete(id: number, userEmail: string) {
+    if (!confirm(`Delete staff account "${userEmail}"?`)) return;
+    const res = await apiRequest(`/api/auth/users/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setAlert({ type: "success", msg: `Deleted ${userEmail}` });
+      loadUsers();
+    } else {
+      const d = await res.json();
+      setAlert({ type: "error", msg: d.error || "Failed to delete." });
+    }
+    setTimeout(() => setAlert(null), 4000);
   }
 
   return (
@@ -118,6 +131,7 @@ export default function StaffPage() {
                       <TableCell>Name</TableCell>
                       <TableCell>Role</TableCell>
                       <TableCell>Joined</TableCell>
+                      <TableCell align="center">Action</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -134,11 +148,20 @@ export default function StaffPage() {
                           />
                         </TableCell>
                         <TableCell>{new Date(u.createdAt).toLocaleDateString("en-IN")}</TableCell>
+                        <TableCell align="center">
+                          {u.role !== "doctor" && (
+                            <Tooltip title="Delete">
+                              <IconButton size="small" color="error" onClick={() => handleDelete(u.id, u.email)}>
+                                <DeleteOutlined sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                     {users.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={4} align="center" sx={{ py: 4, color: "text.secondary" }}>
+                        <TableCell colSpan={5} align="center" sx={{ py: 4, color: "text.secondary" }}>
                           No staff members yet
                         </TableCell>
                       </TableRow>
