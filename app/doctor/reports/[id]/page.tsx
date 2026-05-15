@@ -39,6 +39,7 @@ interface ReportData {
   patient_age: number;
   patient_weight: number;
   patient_gender: string | null;
+  patient_phone: string | null;
   referred_by: string | null;
   total_price: number;
   payment_status: string;
@@ -96,60 +97,75 @@ export default function DoctorReportViewPage() {
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar role="doctor" email="doctor@mylab.com" />
-      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }}>
+      <Box sx={{ "@media print": { display: "none" } }}><Sidebar role="doctor" email="doctor@mylab.com" /></Box>
+      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center" }}>
         {/* Action bar */}
-        <Box sx={{ mb: 2, display: "flex", gap: 2, "@media print": { display: "none" } }}>
+        <Box sx={{ width: 794, mb: 2, display: "flex", gap: 2, "@media print": { display: "none" } }}>
           <Button variant="outlined" size="small" startIcon={<ArrowBackOutlined />} component={Link} href="/doctor/reports">Back</Button>
           <Button variant="contained" size="small" startIcon={<PrintOutlined />} onClick={() => window.print()}>Print</Button>
         </Box>
 
-        {/* Report */}
-        <Box sx={{
-          maxWidth: 800, bgcolor: "#fff", borderRadius: 2,
-          boxShadow: "0 2px 12px rgba(0,0,0,0.08)", overflow: "hidden",
-          "@media print": { boxShadow: "none", borderRadius: 0, maxWidth: "100%" },
+        {/* A4 Page */}
+        <Box id="report-page" sx={{
+          width: 794,
+          minHeight: 1123,
+          maxHeight: 1123,
+          bgcolor: "#fff",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          "@media print": { width: "100%", height: "100vh", minHeight: "100vh", maxHeight: "100vh", boxShadow: "none", margin: 0 },
         }}>
-          {/* Header */}
-          <Box sx={{ px: 4, py: 3, borderBottom: "3px solid #0f4c81", display: "flex", alignItems: "center", gap: 3 }}>
-            {lab?.logo_path && <Box component="img" src={`${API_URL}/uploads/${lab.logo_path}`} alt="Logo" sx={{ height: 60, objectFit: "contain" }} />}
-            <Box sx={{ flexGrow: 1, textAlign: lab?.logo_path ? "left" : "center" }}>
-              <Typography variant="h5" sx={{ fontWeight: 800, color: "#0f4c81" }}>{lab?.lab_name || "MyLab Diagnostics"}</Typography>
-              {lab?.header_text && <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic" }}>{lab.header_text}</Typography>}
-              {lab?.address && <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{lab.address}</Typography>}
-              <Typography variant="caption" color="text.secondary">{[lab?.phone, lab?.email].filter(Boolean).join(" • ")}</Typography>
-            </Box>
-          </Box>
-
-          <Box sx={{ px: 4, py: 0.8, bgcolor: "#f8fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between" }}>
-            <Typography variant="caption" sx={{ fontWeight: 600 }}>Report #{report.id}</Typography>
-            <Typography variant="caption" color="text.secondary">Date: {new Date(report.date).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}</Typography>
-          </Box>
-
-          {/* Patient */}
-          <Box sx={{ px: 4, py: 2, borderBottom: "1px solid #e2e8f0" }}>
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 1.5 }}>
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9, textTransform: "uppercase" }}>Patient</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>{report.patient_name}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9, textTransform: "uppercase" }}>Age / Gender</Typography>
-                <Typography variant="body2">{report.patient_age} yrs {report.patient_gender ? `/ ${report.patient_gender}` : ""}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9, textTransform: "uppercase" }}>Referred By</Typography>
-                <Typography variant="body2">{report.referred_by || "—"}</Typography>
+          {/* HEADER */}
+          <Box sx={{ px: 5, pt: 4, pb: 2, borderBottom: "3px solid #0f4c81" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
+              {lab?.logo_path && <Box component="img" src={`${API_URL}/uploads/${lab.logo_path}`} alt="Logo" sx={{ height: 55, objectFit: "contain" }} />}
+              <Box sx={{ flexGrow: 1, textAlign: lab?.logo_path ? "left" : "center" }}>
+                <Typography sx={{ fontSize: 22, fontWeight: 800, color: "#0f4c81", lineHeight: 1.2 }}>{lab?.lab_name || "MyLab Diagnostics"}</Typography>
+                {lab?.header_text && <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic", fontSize: 11 }}>{lab.header_text}</Typography>}
+                {lab?.address && <Typography variant="caption" color="text.secondary" sx={{ display: "block", fontSize: 10 }}>{lab.address}</Typography>}
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>{[lab?.phone, lab?.email].filter(Boolean).join(" • ")}</Typography>
               </Box>
             </Box>
           </Box>
 
-          {/* Results */}
-          <Box sx={{ px: 4, py: 2.5 }}>
+          {/* BODY */}
+          <Box sx={{ flexGrow: 1, px: 5, py: 2.5 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, fontSize: 11 }}>Report #{report.id}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
+                Date: {new Date(report.date).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
+              </Typography>
+            </Box>
+
+            {/* Patient Info */}
+            <Box sx={{ bgcolor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 1.5, px: 2.5, py: 1.5, mb: 3 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 1.5 }}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9, textTransform: "uppercase", fontWeight: 600 }}>Patient Name</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, fontSize: 13 }}>{report.patient_name}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9, textTransform: "uppercase", fontWeight: 600 }}>Age / Gender</Typography>
+                  <Typography variant="body2" sx={{ fontSize: 13 }}>{report.patient_age} yrs {report.patient_gender ? `/ ${report.patient_gender}` : ""}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9, textTransform: "uppercase", fontWeight: 600 }}>Contact</Typography>
+                  <Typography variant="body2" sx={{ fontSize: 13 }}>{report.patient_phone || "—"}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9, textTransform: "uppercase", fontWeight: 600 }}>Referred By</Typography>
+                  <Typography variant="body2" sx={{ fontSize: 13 }}>{report.referred_by || "—"}</Typography>
+                </Box>
+              </Box>
+            </Box>
+
+            {/* Results Table */}
             <TableContainer>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ "& th": { fontWeight: 700, fontSize: 11, color: "#4a5568", borderBottom: "2px solid #0f4c81", py: 1 } }}>
+                  <TableRow sx={{ "& th": { fontWeight: 700, fontSize: 11, color: "#fff", bgcolor: "#0f4c81", py: 1 } }}>
                     <TableCell>Test Name</TableCell>
                     <TableCell align="center">Result</TableCell>
                     <TableCell align="center">Unit</TableCell>
@@ -158,13 +174,16 @@ export default function DoctorReportViewPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {report.reportItems?.map((item) => {
+                  {report.reportItems?.map((item, idx) => {
                     const st = getStatus(item);
                     const abnormal = st === "high" || st === "low";
                     return (
-                      <TableRow key={item.id} sx={{ bgcolor: abnormal ? "#fef2f2" : "transparent", "& td": { fontSize: 12, py: 1, borderBottom: "1px solid #f1f5f9" } }}>
+                      <TableRow key={item.id} sx={{
+                        bgcolor: abnormal ? "#fef2f2" : idx % 2 === 0 ? "#fff" : "#f8fafc",
+                        "& td": { fontSize: 12, py: 1.2, borderBottom: "1px solid #e2e8f0" },
+                      }}>
                         <TableCell sx={{ fontWeight: 500 }}>{item.test_name}</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 700, color: abnormal ? "#dc2626" : "#1a2332" }}>{item.result_value || "—"}</TableCell>
+                        <TableCell align="center" sx={{ fontWeight: 700, color: abnormal ? "#dc2626" : "#1a2332", fontSize: 13 }}>{item.result_value || "—"}</TableCell>
                         <TableCell align="center" sx={{ color: "text.secondary" }}>{item.unit || "—"}</TableCell>
                         <TableCell align="center" sx={{ color: "text.secondary" }}>
                           {item.normal_min != null && item.normal_max != null ? `${item.normal_min} – ${item.normal_max}${item.unit ? ` ${item.unit}` : ""}` : "—"}
@@ -183,20 +202,19 @@ export default function DoctorReportViewPage() {
             </TableContainer>
           </Box>
 
-          <Divider />
-
-          {/* Footer */}
-          <Box sx={{ px: 4, py: 2.5, display: "flex", justifyContent: "flex-end", alignItems: "flex-end" }}>
-            <Box sx={{ textAlign: "center" }}>
-              {report.doctor?.signature_image && <Box component="img" src={`${API_URL}/uploads/${report.doctor.signature_image}`} alt="Signature" sx={{ height: 45, mb: 0.5, objectFit: "contain" }} />}
-              <Divider sx={{ mb: 0.5 }} />
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{report.doctor?.name || "Doctor"}</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9 }}>Authorized Signatory</Typography>
+          {/* FOOTER */}
+          <Box sx={{ mt: "auto", px: 5, pb: 3, pt: 2 }}>
+            <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+              <Box sx={{ textAlign: "center", minWidth: 180 }}>
+                {report.doctor?.signature_image && <Box component="img" src={`${API_URL}/uploads/${report.doctor.signature_image}`} alt="Signature" sx={{ height: 45, mb: 0.5, objectFit: "contain" }} />}
+                <Divider />
+                <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5, fontSize: 12 }}>{report.doctor?.name || "Doctor"}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9 }}>Authorized Signatory</Typography>
+              </Box>
             </Box>
-          </Box>
-
-          <Box sx={{ px: 4, py: 1.5, bgcolor: "#f8fafc", borderTop: "1px solid #e2e8f0", textAlign: "center" }}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: 8 }}>{lab?.footer_text || "Computer-generated report."}</Typography>
+            <Box sx={{ borderTop: "1px solid #e2e8f0", pt: 1.5, textAlign: "center" }}>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: 8 }}>{lab?.footer_text || "Computer-generated report."}</Typography>
+            </Box>
           </Box>
         </Box>
       </Box>

@@ -15,5 +15,17 @@ html, body {
 
 @media print {
   body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  @page { margin: 10mm; size: A4; }
+  @page { margin: 0; size: A4 portrait; }
+  * { overflow: visible !important; }
+  #report-page {
+    width: 100% !important;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    max-height: 100vh !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
 }
