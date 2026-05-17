@@ -6,6 +6,7 @@ import { gql, getToken, clearToken } from "@/lib/railway";
 
 const nav = [
   { label: "Projects", href: "/dashboard", icon: "📦" },
+  { label: "Monitor", href: "/dashboard/monitor", icon: "📈" },
   { label: "Usage", href: "/dashboard/usage", icon: "📊" },
 ];
 
