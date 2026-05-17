@@ -68,7 +68,7 @@ export default function ServicePage() {
   const envId = searchParams.get("env") || "";
   const t = getToken() || "";
 
-  const [tab, setTab] = useState<"deployments" | "variables" | "settings" | "resources" | "volumes" | "domains" | "logs">("deployments");
+  const [tab, setTab] = useState<"deployments" | "variables" | "settings" | "resources" | "volumes" | "domains" | "logs">((searchParams.get("tab") as any) || "deployments");
   const [serviceName, setServiceName] = useState("");
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [variables, setVariables] = useState<Record<string, string>>({});
