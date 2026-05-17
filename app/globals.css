@@ -13,6 +13,10 @@ html, body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
 
+@media (max-width: 899px) {
+  body { padding-top: 56px; }
+}
+
 @media print {
   body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @page { margin: 0; size: A4 portrait; }
