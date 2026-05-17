@@ -1,30 +1,25 @@
 {
   "name": "railway-manager",
   "version": "1.0.0",
-  "description": "CLI tool to manage Railway account via GraphQL API",
-  "main": "dist/index.js",
-  "bin": {
-    "rw": "./dist/index.js"
-  },
   "scripts": {
-    "dev": "ts-node src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js"
+    "dev": "next dev -p 3002",
+    "build": "next build",
+    "start": "next start -p 3002"
   },
   "dependencies": {
-    "chalk": "^4.1.2",
-    "commander": "^11.1.0",
-    "conf": "^10.2.0",
-    "inquirer": "^8.2.6",
-    "node-fetch": "^2.7.0",
-    "ora": "^5.4.1",
-    "cli-table3": "^0.6.3"
+    "@emotion/react": "^11.11.0",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.15.0",
+    "@mui/material": "^5.15.0",
+    "@tanstack/react-query": "^5.100.10",
+    "next": "14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
-    "@types/inquirer": "^8.2.6",
     "@types/node": "^20.14.8",
-    "@types/node-fetch": "^2.6.4",
-    "typescript": "^5.6.2",
-    "ts-node": "^10.9.2"
+    "@types/react": "^18.3.4",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.6.2"
   }
 }
