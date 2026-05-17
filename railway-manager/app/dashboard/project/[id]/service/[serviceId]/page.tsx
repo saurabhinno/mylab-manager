@@ -56,18 +56,20 @@ export default function ServicePage() {
     setLoading(true);
     try {
       // Service instance
-      const si = await gql(t, `query($sid: String!, $eid: String!) { serviceInstance(serviceId: $sid, environmentId: $eid) { serviceName startCommand buildCommand rootDirectory healthcheckPath region numReplicas restartPolicyType restartPolicyMaxRetries cronSchedule dockerfilePath sleepApplication activeDeployments { id status createdAt } latestDeployment { id status createdAt } } }`, { sid: serviceId, eid: envId });
-      const c = si.serviceInstance;
-      setServiceName(c.serviceName || "");
-      setConfig(c);
-      setStartCmd(c.startCommand || ""); setBuildCmd(c.buildCommand || "");
-      setRootDir(c.rootDirectory || ""); setHealthcheck(c.healthcheckPath || "");
-      setReplicas(c.numReplicas || 1); setRegion(c.region || "");
-      setRestartPolicy(c.restartPolicyType || "ON_FAILURE");
-      setCronSchedule(c.cronSchedule || "");
-      setDockerfilePath(c.dockerfilePath || "");
-      setSleepEnabled(c.sleepApplication || false);
-      setRestartMaxRetries(c.restartPolicyMaxRetries || 0);
+      try {
+        const si = await gql(t, `query($sid: String!, $eid: String!) { serviceInstance(serviceId: $sid, environmentId: $eid) { serviceName startCommand buildCommand rootDirectory healthcheckPath region numReplicas restartPolicyType restartPolicyMaxRetries cronSchedule dockerfilePath sleepApplication activeDeployments { id status createdAt } latestDeployment { id status createdAt } } }`, { sid: serviceId, eid: envId });
+        const c = si.serviceInstance;
+        setServiceName(c.serviceName || "");
+        setConfig(c);
+        setStartCmd(c.startCommand || ""); setBuildCmd(c.buildCommand || "");
+        setRootDir(c.rootDirectory || ""); setHealthcheck(c.healthcheckPath || "");
+        setReplicas(c.numReplicas || 1); setRegion(c.region || "");
+        setRestartPolicy(c.restartPolicyType || "ON_FAILURE");
+        setCronSchedule(c.cronSchedule || "");
+        setDockerfilePath(c.dockerfilePath || "");
+        setSleepEnabled(c.sleepApplication || false);
+        setRestartMaxRetries(c.restartPolicyMaxRetries || 0);
+      } catch {}
 
       // Limits
       try {
@@ -81,13 +83,17 @@ export default function ServicePage() {
       } catch {}
 
       // Deployments
-      const dp = await gql(t, `query($input: DeploymentListInput!, $first: Int) { deployments(input: $input, first: $first) { edges { node { id status createdAt url } } } }`,
-        { input: { projectId, serviceId, environmentId: envId }, first: 20 });
-      setDeployments(dp.deployments.edges.map((e: any) => e.node));
+      try {
+        const dp = await gql(t, `query($input: DeploymentListInput!, $first: Int) { deployments(input: $input, first: $first) { edges { node { id status createdAt url } } } }`,
+          { input: { projectId, serviceId, environmentId: envId }, first: 20 });
+        setDeployments(dp.deployments.edges.map((e: any) => e.node));
+      } catch {}
 
       // Variables
-      const vr = await gql(t, `query($p: String!, $s: String!, $e: String!) { variables(projectId: $p, serviceId: $s, environmentId: $e) }`, { p: projectId, s: serviceId, e: envId });
-      setVariables(vr.variables || {});
+      try {
+        const vr = await gql(t, `query($p: String!, $s: String!, $e: String!) { variables(projectId: $p, serviceId: $s, environmentId: $e) }`, { p: projectId, s: serviceId, e: envId });
+        setVariables(vr.variables || {});
+      } catch {}
 
       // Domains
       try {
