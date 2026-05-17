@@ -452,17 +452,23 @@ export default function ServicePage() {
       {/* RESOURCES TAB */}
       {tab === "resources" && (
         <div style={{ maxWidth: 480 }}>
-          <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 20 }}>Set CPU and memory limits for this service. Leave empty for shared/auto allocation.</p>
+          <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 20 }}>Set CPU and memory limits for this service (including databases like MySQL, Redis, Postgres).</p>
           <div style={{ display: "grid", gap: 16 }}>
             <div>
               <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 6 }}>vCPUs</label>
               <input type="number" step="0.5" min="0.5" max="32" value={cpuLimit} onChange={(e) => setCpuLimit(e.target.value ? Number(e.target.value) : "")} placeholder="e.g. 1, 2, 4, 8" style={inputStyle} />
-              <span style={{ fontSize: 11, color: "#475569", marginTop: 4, display: "block" }}>0.5 to 32 vCPUs</span>
+              <span style={{ fontSize: 11, color: "#475569", marginTop: 4, display: "block" }}>0.5 to 32 vCPUs — controls compute power</span>
             </div>
             <div>
               <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 6 }}>Memory (GB)</label>
               <input type="number" step="0.5" min="0.5" max="32" value={memoryLimit} onChange={(e) => setMemoryLimit(e.target.value ? Number(e.target.value) : "")} placeholder="e.g. 0.5, 1, 2, 4, 8" style={inputStyle} />
-              <span style={{ fontSize: 11, color: "#475569", marginTop: 4, display: "block" }}>0.5 to 32 GB</span>
+              <span style={{ fontSize: 11, color: "#475569", marginTop: 4, display: "block" }}>0.5 to 32 GB — for databases, increase this to handle more connections/data</span>
+            </div>
+            <div style={{ background: "#0f1117", border: "1px solid #2d3548", borderRadius: 8, padding: 12 }}>
+              <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4 }}>💡 For databases (MySQL, Redis, Postgres):</div>
+              <div style={{ fontSize: 12, color: "#94a3b8" }}>• Increase memory for better query performance and caching</div>
+              <div style={{ fontSize: 12, color: "#94a3b8" }}>• Disk storage auto-scales based on usage (up to plan limit)</div>
+              <div style={{ fontSize: 12, color: "#94a3b8" }}>• CPU affects write throughput and concurrent connections</div>
             </div>
             <button onClick={saveResourceLimits} style={{ ...btnStyle, marginTop: 8 }}>Save Resource Limits</button>
           </div>
