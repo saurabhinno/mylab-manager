@@ -150,7 +150,7 @@ export default function MonitorPage() {
             const worst = cpuLevel === "critical" || memLevel === "critical" ? "critical" : cpuLevel === "warning" || memLevel === "warning" ? "warning" : "normal";
 
             return (
-              <Link key={s.id} href={`/dashboard/project/${selectedProject}/service/${s.id}?env=${proj?.envId || ""}&tab=resources`} style={{ textDecoration: "none" }}>
+              <Link key={s.id} href={`/dashboard/project/${selectedProject}/service/${s.id}?env=${projects.find(p => p.id === selectedProject)?.envId || ""}&tab=resources`} style={{ textDecoration: "none" }}>
               <div style={{ background: "#1e2330", border: `1px solid ${worst === "critical" ? "#7f1d1d" : worst === "warning" ? "#78350f" : "#2d3548"}`, borderRadius: 10, padding: 16, cursor: "pointer" }}>
                 {/* Header */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
