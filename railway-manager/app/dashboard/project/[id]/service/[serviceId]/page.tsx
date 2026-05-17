@@ -4,6 +4,62 @@ import { useParams, useSearchParams } from "next/navigation";
 import { gql, getToken } from "@/lib/railway";
 import Link from "next/link";
 
+function VolumesSection({ projectId, serviceId, envId, token }: { projectId: string; serviceId: string; envId: string; token: string }) {
+  const [volumes, setVolumes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!projectId || !token) return;
+    gql(token, `query($id: String!) { project(id: $id) { volumes { edges { node { id name volumeInstances { edges { node { id mountPath currentSizeMB sizeMB state serviceId environmentId } } } } } } } }`, { id: projectId })
+      .then((d) => {
+        const all = d.project.volumes.edges.flatMap((v: any) =>
+          v.node.volumeInstances.edges
+            .filter((vi: any) => vi.node.serviceId === serviceId && vi.node.environmentId === envId)
+            .map((vi: any) => ({ ...vi.node, volumeName: v.node.name, volumeId: v.node.id }))
+        );
+        setVolumes(all);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [projectId, serviceId, envId, token]);
+
+  if (loading) return <p style={{ color: "#64748b", fontSize: 12 }}>Loading volumes...</p>;
+  if (volumes.length === 0) return <p style={{ color: "#64748b", fontSize: 12 }}>No volumes attached to this service.</p>;
+
+  return (
+    <div>
+      {volumes.map((v) => {
+        const usedPercent = v.sizeMB > 0 ? (v.currentSizeMB / v.sizeMB) * 100 : 0;
+        return (
+          <div key={v.id} style={{ background: "#0f1117", border: "1px solid #2d3548", borderRadius: 8, padding: 16, marginBottom: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>{v.volumeName}</div>
+                <div style={{ fontSize: 11, color: "#64748b" }}>Mount: {v.mountPath}</div>
+              </div>
+              <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: v.state === "READY" ? "#064e3b" : "#422006", color: v.state === "READY" ? "#6ee7b7" : "#fcd34d" }}>{v.state}</span>
+            </div>
+            {/* Size bar */}
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>
+                <span>Used: {v.currentSizeMB.toFixed(0)} MB</span>
+                <span>Allocated: {v.sizeMB} MB ({(v.sizeMB / 1000).toFixed(1)} GB)</span>
+              </div>
+              <div style={{ height: 6, background: "#1e2330", borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${Math.min(usedPercent, 100)}%`, background: usedPercent > 80 ? "#ef4444" : usedPercent > 50 ? "#f59e0b" : "#22c55e", borderRadius: 3 }}></div>
+              </div>
+              <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>{usedPercent.toFixed(1)}% used</div>
+            </div>
+            <div style={{ fontSize: 11, color: "#475569" }}>
+              Volume resize is managed via Railway dashboard. Volumes auto-scale up to your plan limit.
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 interface Deployment { id: string; status: string; createdAt: string; url: string | null; }
 
 export default function ServicePage() {
@@ -450,8 +506,8 @@ export default function ServicePage() {
             <input placeholder="Mount path (e.g. /data)" value={newVolumePath} onChange={(e) => setNewVolumePath(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
             <button onClick={createVolume} style={btnStyle}>Create Volume</button>
           </div>
-          <p style={{ color: "#64748b", fontSize: 12, marginBottom: 12 }}>Volumes provide persistent storage that survives deployments and restarts.</p>
-          <p style={{ color: "#475569", fontSize: 11 }}>Common paths: /data, /var/lib/postgresql/data, /var/lib/mysql</p>
+          {/* Show existing volumes for this service */}
+          <VolumesSection projectId={projectId as string} serviceId={serviceId as string} envId={envId} token={t} />
         </div>
       )}
 
