@@ -1,7 +1,8 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
 export async function apiRequest(path: string, options: RequestInit = {}) {
-  const res = await fetch(`${API_URL}${path}`, {
+  // Route through same-origin proxy to avoid CORS
+  // path comes in as "/api/auth/login" → proxy at "/api/proxy/auth/login"
+  const proxyPath = path.replace("/api/", "/api/proxy/");
+  const res = await fetch(proxyPath, {
     ...options,
     credentials: "include",
     headers: {
