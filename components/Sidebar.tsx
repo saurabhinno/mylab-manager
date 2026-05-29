@@ -12,6 +12,7 @@ import {
   DashboardOutlined, ScienceOutlined, ArticleOutlined,
   PeopleOutlined, LogoutOutlined, LocalHospitalOutlined, PersonOutlined,
   SettingsOutlined, MenuOutlined, CloseOutlined, ChevronLeftOutlined, ChevronRightOutlined,
+  BiotechOutlined,
 } from '@mui/icons-material';
 import { apiRequest } from '@/lib/api';
 import LangSwitcher from '@/components/LangSwitcher';
@@ -46,6 +47,7 @@ export default function Sidebar({ role, email }: SidebarProps) {
 
   const doctorNav: NavItem[] = [
     { label: t('nav.dashboard'), href: '/doctor/dashboard', icon: <DashboardOutlined /> },
+    { label: t('nav.sample_collection'), href: '/compounder/reports', icon: <BiotechOutlined /> },
     { label: t('nav.tests'), href: '/doctor/tests', icon: <ScienceOutlined /> },
     { label: t('nav.reports'), href: '/doctor/reports', icon: <ArticleOutlined /> },
     { label: t('nav.staff'), href: '/doctor/staff', icon: <PeopleOutlined /> },

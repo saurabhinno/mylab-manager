@@ -212,6 +212,7 @@ const translations: Record<string, Record<Lang, string>> = {
 
   // Nav - compounder
   "nav.compounder_reports": { en: "Reports", hi: "रिपोर्ट", hinglish: "Reports" },
+  "nav.sample_collection": { en: "Sample Collection", hi: "सैंपल कलेक्शन", hinglish: "Sample Collection" },
 
   // Table common
   "table.id": { en: "ID", hi: "ID", hinglish: "ID" },
