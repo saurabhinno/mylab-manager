@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import ThemeRegistry from "@/components/ThemeRegistry";
+import ServiceWorker from "@/components/ServiceWorker";
 
 export const metadata: Metadata = {
   title: "MyLab — Diagnostics Portal",
@@ -24,17 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <a href="#main-content" className="skip-to-content">Skip to content</a>
         <ThemeRegistry>{children}</ThemeRegistry>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', () => {
-                  navigator.serviceWorker.register('/sw.js');
-                });
-              }
-            `,
-          }}
-        />
+        <ServiceWorker />
       </body>
     </html>
   );
