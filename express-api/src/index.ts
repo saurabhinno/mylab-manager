@@ -18,8 +18,8 @@ app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (mobile apps, curl, etc)
     if (!origin) return callback(null, true);
-    // Allow all .railway.app domains and localhost
-    if (origin.includes('railway.app') || origin.includes('localhost')) {
+    // Allow all .railway.app domains, localhost, and codefliq.com
+    if (origin.includes('railway.app') || origin.includes('localhost') || origin.includes('codefliq.com')) {
       return callback(null, true);
     }
     // Allow configured frontend URL
