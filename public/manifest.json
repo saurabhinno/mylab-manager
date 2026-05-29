@@ -3,10 +3,12 @@
   "short_name": "MyLab",
   "description": "Blood test reporting platform for doctors and lab staff",
   "start_url": "/login",
+  "id": "/",
   "display": "standalone",
   "background_color": "#0f4c81",
   "theme_color": "#0f4c81",
   "orientation": "any",
+  "scope": "/",
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -23,6 +25,20 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Sample",
+      "short_name": "New",
+      "url": "/compounder/reports",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/doctor/dashboard",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

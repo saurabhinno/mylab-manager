@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import ThemeRegistry from "@/components/ThemeRegistry";
 import ServiceWorker from "@/components/ServiceWorker";
+import InstallPrompt from "@/components/InstallPrompt";
 
 export const metadata: Metadata = {
   title: "MyLab — Diagnostics Portal",
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <a href="#main-content" className="skip-to-content">Skip to content</a>
         <ThemeRegistry>{children}</ThemeRegistry>
         <ServiceWorker />
+        <InstallPrompt />
       </body>
     </html>
   );
