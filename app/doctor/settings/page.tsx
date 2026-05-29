@@ -8,8 +8,10 @@ import {
 import { SaveOutlined, ImageOutlined, SettingsOutlined, DeleteOutlined } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 export default function SettingsPage() {
+  const { t } = useI18n();
   const [labName, setLabName] = useState("");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
@@ -83,8 +85,8 @@ export default function SettingsPage() {
       <Sidebar role="doctor" email="doctor@mylab.com" />
       <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h5">Report Template Settings</Typography>
-          <Typography variant="body2" color="text.secondary">Configure how your lab reports look when printed</Typography>
+          <Typography variant="h5">{t("settings.title")}</Typography>
+          <Typography variant="body2" color="text.secondary">{t("settings.subtitle")}</Typography>
         </Box>
 
         {alert && <Alert severity={alert.type} sx={{ mb: 2, borderRadius: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
@@ -96,17 +98,17 @@ export default function SettingsPage() {
                 <CardContent>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
                     <SettingsOutlined sx={{ color: "primary.main" }} />
-                    <Typography variant="h6">Lab Information</Typography>
+                    <Typography variant="h6">{t("settings.lab_info")}</Typography>
                   </Box>
                   <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <TextField label="Lab Name" value={labName} onChange={(e) => setLabName(e.target.value)} required fullWidth />
-                    <TextField label="Address" value={address} onChange={(e) => setAddress(e.target.value)} fullWidth multiline rows={2} />
+                    <TextField label={t("settings.lab_name")} value={labName} onChange={(e) => setLabName(e.target.value)} required fullWidth />
+                    <TextField label={t("settings.address")} value={address} onChange={(e) => setAddress(e.target.value)} fullWidth multiline rows={2} />
                     <Grid container spacing={1.5}>
-                      <Grid item xs={6}><TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth /></Grid>
-                      <Grid item xs={6}><TextField label="Email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth /></Grid>
+                      <Grid item xs={6}><TextField label={t("settings.phone")} value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth /></Grid>
+                      <Grid item xs={6}><TextField label={t("settings.email")} value={email} onChange={(e) => setEmail(e.target.value)} fullWidth /></Grid>
                     </Grid>
-                    <TextField label="Header Tagline" value={headerText} onChange={(e) => setHeaderText(e.target.value)} fullWidth placeholder="e.g. Accurate Results. Trusted Care." helperText="Appears below lab name on reports" />
-                    <TextField label="Footer Disclaimer" value={footerText} onChange={(e) => setFooterText(e.target.value)} fullWidth multiline rows={2} helperText="Appears at the bottom of every report" />
+                    <TextField label={t("settings.header_tagline")} value={headerText} onChange={(e) => setHeaderText(e.target.value)} fullWidth placeholder={t("settings.header_placeholder")} helperText={t("settings.header_helper")} />
+                    <TextField label={t("settings.footer_label")} value={footerText} onChange={(e) => setFooterText(e.target.value)} fullWidth multiline rows={2} helperText={t("settings.footer_helper")} />
                   </Box>
                 </CardContent>
               </Card>
@@ -117,10 +119,10 @@ export default function SettingsPage() {
                 <CardContent>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
                     <ImageOutlined sx={{ color: "primary.main" }} />
-                    <Typography variant="h6">Lab Logo</Typography>
+                    <Typography variant="h6">{t("settings.lab_logo")}</Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Upload your lab logo. It will appear on the top-left of printed reports.
+                    {t("settings.logo_desc")}
                   </Typography>
                   <Box sx={{
                     border: "2px dashed", borderColor: logoPreview ? "primary.main" : "divider",
@@ -136,11 +138,11 @@ export default function SettingsPage() {
                   <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }} onChange={handleLogoChange} />
                   <Box sx={{ display: "flex", gap: 1.5 }}>
                     <Button variant="outlined" startIcon={<ImageOutlined />} onClick={() => fileRef.current?.click()}>
-                      {logoPreview ? "Change Logo" : "Upload Logo"}
+                      {logoPreview ? t("settings.change_logo") : t("settings.upload_logo")}
                     </Button>
                     {logoPreview && (
                       <Button variant="outlined" color="error" startIcon={<DeleteOutlined />} onClick={() => { setLogoPreview(null); setLogoFile(null); }}>
-                        Remove
+                        {t("settings.remove")}
                       </Button>
                     )}
                   </Box>
@@ -156,7 +158,7 @@ export default function SettingsPage() {
                   startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined />}
                   disabled={saving}
                 >
-                  {saving ? "Saving…" : "Save Settings"}
+                  {saving ? t("settings.saving") : t("settings.save")}
                 </Button>
               </Box>
             </Grid>

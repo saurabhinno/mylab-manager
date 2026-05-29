@@ -20,19 +20,6 @@ const DRAWER_WIDTH = 240;
 
 interface NavItem { label: string; href: string; icon: React.ReactNode; }
 
-const doctorNav: NavItem[] = [
-  { label: 'Dashboard', href: '/doctor/dashboard', icon: <DashboardOutlined /> },
-  { label: 'Test Catalogue', href: '/doctor/tests', icon: <ScienceOutlined /> },
-  { label: 'All Reports', href: '/doctor/reports', icon: <ArticleOutlined /> },
-  { label: 'Staff', href: '/doctor/staff', icon: <PeopleOutlined /> },
-  { label: 'Report Settings', href: '/doctor/settings', icon: <SettingsOutlined /> },
-  { label: 'Profile', href: '/doctor/profile', icon: <PersonOutlined /> },
-];
-
-const compounderNav: NavItem[] = [
-  { label: 'Reports', href: '/compounder/reports', icon: <DashboardOutlined /> },
-];
-
 interface SidebarProps { role: 'doctor' | 'compounder'; email?: string; }
 
 export default function Sidebar({ role, email }: SidebarProps) {
@@ -41,6 +28,21 @@ export default function Sidebar({ role, email }: SidebarProps) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [open, setOpen] = useState(false);
+  const { t } = useI18n();
+
+  const doctorNav: NavItem[] = [
+    { label: t('nav.dashboard'), href: '/doctor/dashboard', icon: <DashboardOutlined /> },
+    { label: t('nav.tests'), href: '/doctor/tests', icon: <ScienceOutlined /> },
+    { label: t('nav.reports'), href: '/doctor/reports', icon: <ArticleOutlined /> },
+    { label: t('nav.staff'), href: '/doctor/staff', icon: <PeopleOutlined /> },
+    { label: t('nav.settings'), href: '/doctor/settings', icon: <SettingsOutlined /> },
+    { label: t('nav.profile'), href: '/doctor/profile', icon: <PersonOutlined /> },
+  ];
+
+  const compounderNav: NavItem[] = [
+    { label: t('nav.compounder_reports'), href: '/compounder/reports', icon: <DashboardOutlined /> },
+  ];
+
   const nav = role === 'doctor' ? doctorNav : compounderNav;
 
   async function handleLogout() {
@@ -57,8 +59,8 @@ export default function Sidebar({ role, email }: SidebarProps) {
             <LocalHospitalOutlined sx={{ color: '#fff', fontSize: 20 }} />
           </Box>
           <Box>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>MyLab</Typography>
-            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontSize: 9 }}>Diagnostics Portal</Typography>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>{t('app.name')}</Typography>
+            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontSize: 9 }}>{t('app.tagline')}</Typography>
           </Box>
         </Box>
         {isMobile && (
@@ -110,16 +112,16 @@ export default function Sidebar({ role, email }: SidebarProps) {
         </Avatar>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', display: 'block', fontSize: 10 }}>
-            {role === 'doctor' ? 'Doctor' : 'Compounder'}
+            {role === 'doctor' ? t('sidebar.doctor') : t('sidebar.compounder')}
           </Typography>
           <Typography variant="caption" sx={{ color: '#fff', fontWeight: 500, fontSize: 11, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {email ?? ''}
           </Typography>
         </Box>
-        <Tooltip title="Logout">
+        <Tooltip title={t('common.logout')}>
           <IconButton
             onClick={handleLogout}
-            aria-label="Logout"
+            aria-label={t('common.logout')}
             size="small"
             sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#fff' }, '&:focus-visible': { outline: '2px solid #fff', outlineOffset: 2 } }}
           >

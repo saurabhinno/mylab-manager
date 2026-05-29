@@ -9,6 +9,7 @@ import {
 import { SearchOutlined, TodayOutlined, DateRangeOutlined, ClearOutlined } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 interface Report {
   id: number;
@@ -24,6 +25,7 @@ interface Report {
 type FilterMode = "all" | "today" | "range";
 
 export default function DoctorReportsPage() {
+  const { t } = useI18n();
   const [reports, setReports] = useState<Report[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -65,8 +67,8 @@ export default function DoctorReportsPage() {
       <Sidebar role="doctor" email="doctor@mylab.com" />
       <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h5">All Reports</Typography>
-          <Typography variant="body2" color="text.secondary">{reports.length} total reports</Typography>
+          <Typography variant="h5">{t("reports.title")}</Typography>
+          <Typography variant="body2" color="text.secondary">{reports.length} {t("reports.total")}</Typography>
         </Box>
 
         <Card>
@@ -80,21 +82,21 @@ export default function DoctorReportsPage() {
                     onClick={() => setFilterMode("all")}
                     variant={filterMode === "all" ? "contained" : "outlined"}
                   >
-                    All
+                    {t("common.all")}
                   </Button>
                   <Button
                     onClick={() => setFilterMode("today")}
                     variant={filterMode === "today" ? "contained" : "outlined"}
                     startIcon={<TodayOutlined sx={{ fontSize: 16 }} />}
                   >
-                    Today
+                    {t("common.today")}
                   </Button>
                   <Button
                     onClick={() => setFilterMode("range")}
                     variant={filterMode === "range" ? "contained" : "outlined"}
                     startIcon={<DateRangeOutlined sx={{ fontSize: 16 }} />}
                   >
-                    Date Range
+                    {t("reports.date_range")}
                   </Button>
                 </ButtonGroup>
               </Grid>
@@ -106,7 +108,7 @@ export default function DoctorReportsPage() {
                     <TextField
                       type="date"
                       size="small"
-                      label="From"
+                      label={t("reports.from")}
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
                       fullWidth
@@ -117,7 +119,7 @@ export default function DoctorReportsPage() {
                     <TextField
                       type="date"
                       size="small"
-                      label="To"
+                      label={t("reports.to")}
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
                       fullWidth
@@ -132,7 +134,7 @@ export default function DoctorReportsPage() {
                         startIcon={<ClearOutlined sx={{ fontSize: 14 }} />}
                         sx={{ textTransform: "none" }}
                       >
-                        Clear
+                        {t("reports.clear")}
                       </Button>
                     </Grid>
                   )}
@@ -142,7 +144,7 @@ export default function DoctorReportsPage() {
               {/* Search */}
               <Grid item xs={12} md sx={{ display: "flex", justifyContent: "flex-end" }}>
                 <TextField
-                  placeholder="Search patient or referral…"
+                  placeholder={t("reports.search_placeholder")}
                   size="small"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -155,20 +157,20 @@ export default function DoctorReportsPage() {
             {/* Summary chips */}
             <Box sx={{ display: "flex", gap: 1.5, mb: 1 }}>
               <Chip
-                label={`${filtered.length} reports`}
+                label={`${filtered.length} ${t("reports.reports_count")}`}
                 size="small"
                 variant="outlined"
                 sx={{ fontSize: 12 }}
               />
               <Chip
-                label={`₹${filteredRevenue.toFixed(0)} revenue`}
+                label={`₹${filteredRevenue.toFixed(0)} ${t("reports.revenue")}`}
                 size="small"
                 color="success"
                 variant="outlined"
                 sx={{ fontSize: 12 }}
               />
               {filterMode === "today" && (
-                <Chip label={`Date: ${new Date().toLocaleDateString("en-IN")}`} size="small" color="primary" variant="outlined" sx={{ fontSize: 12 }} />
+                <Chip label={`${t("table.date")}: ${new Date().toLocaleDateString("en-IN")}`} size="small" color="primary" variant="outlined" sx={{ fontSize: 12 }} />
               )}
               {filterMode === "range" && (startDate || endDate) && (
                 <Chip
@@ -188,15 +190,15 @@ export default function DoctorReportsPage() {
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ "& th": { fontWeight: 600, color: "text.secondary", fontSize: 12, bgcolor: "#f8fafc" } }}>
-                    <TableCell>Report #</TableCell>
-                    <TableCell>Patient</TableCell>
-                    <TableCell>Age</TableCell>
-                    <TableCell>Weight</TableCell>
-                    <TableCell>Referred By</TableCell>
-                    <TableCell>Date</TableCell>
-                    <TableCell align="right">Amount</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="center">View</TableCell>
+                    <TableCell>{t("reports.col_report")}</TableCell>
+                    <TableCell>{t("reports.col_patient")}</TableCell>
+                    <TableCell>{t("reports.col_age")}</TableCell>
+                    <TableCell>{t("reports.col_weight")}</TableCell>
+                    <TableCell>{t("reports.col_referred_by")}</TableCell>
+                    <TableCell>{t("reports.col_date")}</TableCell>
+                    <TableCell align="right">{t("reports.col_amount")}</TableCell>
+                    <TableCell>{t("reports.col_status")}</TableCell>
+                    <TableCell align="center">{t("reports.col_view")}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -217,7 +219,7 @@ export default function DoctorReportsPage() {
                       </TableCell>
                       <TableCell align="center">
                         <Button size="small" variant="text" href={`/doctor/reports/${r.id}`} sx={{ fontSize: 11, minWidth: 0 }} aria-label={`View report ${r.id}`}>
-                          View
+                          {t("reports.col_view")}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -225,7 +227,7 @@ export default function DoctorReportsPage() {
                   {filtered.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={9} align="center" sx={{ py: 5, color: "text.secondary" }}>
-                        {search || filterMode !== "all" ? "No reports match your filters" : "No reports yet"}
+                        {search || filterMode !== "all" ? t("reports.no_match") : t("reports.no_reports")}
                       </TableCell>
                     </TableRow>
                   )}

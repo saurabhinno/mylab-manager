@@ -14,6 +14,7 @@ import {
 } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 interface StaffUser {
   id: number;
@@ -24,6 +25,7 @@ interface StaffUser {
 }
 
 export default function StaffPage() {
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -93,8 +95,8 @@ export default function StaffPage() {
       <Sidebar role="doctor" email="doctor@mylab.com" />
       <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h5">Staff Management</Typography>
-          <Typography variant="body2" color="text.secondary">Manage lab staff accounts</Typography>
+          <Typography variant="h5">{t("staff.title")}</Typography>
+          <Typography variant="body2" color="text.secondary">{t("staff.subtitle")}</Typography>
         </Box>
 
         {alert && <Alert severity={alert.type} sx={{ mb: 2, borderRadius: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
@@ -106,11 +108,11 @@ export default function StaffPage() {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2.5 }}>
                   <PersonAddOutlined sx={{ color: "primary.main" }} />
-                  <Typography variant="h6">Add Compounder</Typography>
+                  <Typography variant="h6">{t("staff.add")}</Typography>
                 </Box>
                 <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <TextField
-                    label="Email address"
+                    label={t("staff.email_label")}
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -118,7 +120,7 @@ export default function StaffPage() {
                     InputProps={{ startAdornment: <InputAdornment position="start"><EmailOutlined sx={{ fontSize: 18, color: "text.secondary" }} /></InputAdornment> }}
                   />
                   <TextField
-                    label="Password"
+                    label={t("staff.password_label")}
                     type={showPw ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -135,7 +137,7 @@ export default function StaffPage() {
                     }}
                   />
                   <Button type="submit" variant="contained" startIcon={<PersonAddOutlined />} fullWidth sx={{ mt: 0.5 }}>
-                    Create Account
+                    {t("staff.create_account")}
                   </Button>
                 </Box>
               </CardContent>
@@ -146,17 +148,17 @@ export default function StaffPage() {
           <Grid item xs={12} md={8}>
             <Card>
               <CardContent sx={{ pb: 0 }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>All Staff ({users.length})</Typography>
+                <Typography variant="h6" sx={{ mb: 2 }}>{t("staff.all_staff")} ({users.length})</Typography>
               </CardContent>
               <TableContainer>
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ "& th": { fontWeight: 600, color: "text.secondary", fontSize: 12, bgcolor: "#f8fafc" } }}>
-                      <TableCell>Email</TableCell>
-                      <TableCell>Name</TableCell>
-                      <TableCell>Role</TableCell>
-                      <TableCell>Joined</TableCell>
-                      <TableCell align="center">Action</TableCell>
+                      <TableCell>{t("staff.col_email")}</TableCell>
+                      <TableCell>{t("staff.col_name")}</TableCell>
+                      <TableCell>{t("staff.col_role")}</TableCell>
+                      <TableCell>{t("staff.col_joined")}</TableCell>
+                      <TableCell align="center">{t("staff.col_action")}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -176,12 +178,12 @@ export default function StaffPage() {
                         <TableCell align="center">
                           {u.role !== "doctor" && (
                             <Box sx={{ display: "flex", gap: 0.5, justifyContent: "center" }}>
-                              <Tooltip title="Reset Password">
+                              <Tooltip title={t("staff.reset_password")}>
                                 <IconButton size="small" color="primary" onClick={() => { setResetUserId(u.id); setResetPassword(""); }}>
                                   <LockResetOutlined sx={{ fontSize: 16 }} />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title="Delete">
+                              <Tooltip title={t("common.delete")}>
                                 <IconButton size="small" color="error" onClick={() => handleDelete(u.id, u.email)}>
                                   <DeleteOutlined sx={{ fontSize: 16 }} />
                                 </IconButton>
@@ -194,7 +196,7 @@ export default function StaffPage() {
                     {users.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} align="center" sx={{ py: 4, color: "text.secondary" }}>
-                          No staff members yet
+                          {t("staff.no_staff")}
                         </TableCell>
                       </TableRow>
                     )}
@@ -210,17 +212,17 @@ export default function StaffPage() {
           <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <LockResetOutlined sx={{ color: "primary.main" }} />
-              <Typography variant="h6">Reset Password</Typography>
+              <Typography variant="h6">{t("staff.reset_password")}</Typography>
             </Box>
             <IconButton size="small" onClick={() => setResetUserId(null)}><CloseOutlined /></IconButton>
           </DialogTitle>
           <DialogContent>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Set a new password for {users.find((u) => u.id === resetUserId)?.email}
+              {t("staff.set_new_password")} {users.find((u) => u.id === resetUserId)?.email}
             </Typography>
             <Box component="form" id="reset-pw-form" onSubmit={handleResetPassword}>
               <TextField
-                label="New Password"
+                label={t("staff.new_password")}
                 type={showResetPw ? "text" : "password"}
                 value={resetPassword}
                 onChange={(e) => setResetPassword(e.target.value)}
@@ -242,9 +244,9 @@ export default function StaffPage() {
             </Box>
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button onClick={() => setResetUserId(null)} variant="outlined">Cancel</Button>
+            <Button onClick={() => setResetUserId(null)} variant="outlined">{t("common.cancel")}</Button>
             <Button type="submit" form="reset-pw-form" variant="contained" disabled={!resetPassword}>
-              Reset Password
+              {t("staff.reset_password")}
             </Button>
           </DialogActions>
         </Dialog>

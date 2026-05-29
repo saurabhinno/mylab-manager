@@ -10,8 +10,10 @@ import {
 } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 export default function ProfilePage() {
+  const { t } = useI18n();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [signaturePath, setSignaturePath] = useState<string | null>(null);
@@ -125,8 +127,8 @@ export default function ProfilePage() {
       <Sidebar role="doctor" email={email} />
       <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h5">Profile</Typography>
-          <Typography variant="body2" color="text.secondary">Update your name and signature for reports</Typography>
+          <Typography variant="h5">{t("profile.title")}</Typography>
+          <Typography variant="body2" color="text.secondary">{t("profile.subtitle")}</Typography>
         </Box>
 
         {alert && <Alert severity={alert.type} sx={{ mb: 2, borderRadius: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
@@ -138,23 +140,23 @@ export default function ProfilePage() {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2.5 }}>
                   <PersonOutlined sx={{ color: "primary.main" }} />
-                  <Typography variant="h6">Personal Information</Typography>
+                  <Typography variant="h6">{t("profile.personal_info")}</Typography>
                 </Box>
                 <Box component="form" onSubmit={handleSave} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <TextField
-                    label="Display Name"
+                    label={t("profile.display_name")}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     fullWidth
-                    placeholder="Dr. John Smith"
-                    helperText="This name will appear on reports"
+                    placeholder={t("profile.name_placeholder")}
+                    helperText={t("profile.name_helper")}
                   />
                   <TextField
-                    label="Email"
+                    label={t("profile.email_label")}
                     value={email}
                     fullWidth
                     disabled
-                    helperText="Email cannot be changed"
+                    helperText={t("profile.email_helper")}
                   />
                   <Button
                     type="submit"
@@ -164,7 +166,7 @@ export default function ProfilePage() {
                     fullWidth
                     sx={{ mt: 1 }}
                   >
-                    {saving ? "Saving…" : "Save Profile"}
+                    {saving ? t("profile.saving") : t("profile.save")}
                   </Button>
                 </Box>
               </CardContent>
@@ -177,10 +179,10 @@ export default function ProfilePage() {
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2.5 }}>
                   <ImageOutlined sx={{ color: "primary.main" }} />
-                  <Typography variant="h6">Signature</Typography>
+                  <Typography variant="h6">{t("profile.signature")}</Typography>
                 </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Upload your signature image. It will be printed on lab reports. Use a PNG with transparent background for best results.
+                  {t("profile.signature_desc")}
                 </Typography>
 
                 {/* Signature Preview */}
@@ -211,7 +213,7 @@ export default function ProfilePage() {
                         <ImageOutlined />
                       </Avatar>
                       <Typography variant="body2" color="text.secondary">
-                        No signature uploaded yet
+                        {t("profile.no_signature")}
                       </Typography>
                     </>
                   )}
@@ -231,7 +233,7 @@ export default function ProfilePage() {
                     startIcon={<ImageOutlined />}
                     onClick={() => fileRef.current?.click()}
                   >
-                    {signaturePreview ? "Change Signature" : "Upload Signature"}
+                    {signaturePreview ? t("profile.change_signature") : t("profile.upload_signature")}
                   </Button>
                   {signaturePreview && (
                     <Button
@@ -254,14 +256,14 @@ export default function ProfilePage() {
                         setTimeout(() => setAlert(null), 3000);
                       }}
                     >
-                      Remove
+                      {t("profile.remove")}
                     </Button>
                   )}
                 </Box>
 
                 <Divider sx={{ my: 2.5 }} />
                 <Typography variant="caption" color="text.secondary">
-                  Accepted formats: PNG, JPEG, WebP. Max size: 2MB. Recommended: 400×150px PNG with transparent background.
+                  {t("profile.format_hint")}
                 </Typography>
               </CardContent>
             </Card>

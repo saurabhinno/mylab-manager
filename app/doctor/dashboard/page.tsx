@@ -11,6 +11,7 @@ import {
 } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 interface Report {
   id: number;
@@ -31,6 +32,7 @@ interface StatCard {
 }
 
 export default function DoctorDashboardPage() {
+  const { t } = useI18n();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,10 +49,10 @@ export default function DoctorDashboardPage() {
   const totalRevenue = reports.reduce((s, r) => s + r.total_price, 0);
 
   const stats: StatCard[] = [
-    { label: "Today's Reports", value: todayReports.length, icon: <ArticleOutlined />, color: "#0f4c81", bg: "#e8f0fe" },
-    { label: "Today's Revenue", value: `₹${todayRevenue.toFixed(0)}`, icon: <TrendingUpOutlined />, color: "#00897b", bg: "#e0f2f1" },
-    { label: "Total Reports", value: reports.length, icon: <PeopleOutlined />, color: "#7b1fa2", bg: "#f3e5f5" },
-    { label: "Total Revenue", value: `₹${totalRevenue.toFixed(0)}`, icon: <ScienceOutlined />, color: "#e65100", bg: "#fff3e0" },
+    { label: t("dashboard.today_reports"), value: todayReports.length, icon: <ArticleOutlined />, color: "#0f4c81", bg: "#e8f0fe" },
+    { label: t("dashboard.today_revenue"), value: `₹${todayRevenue.toFixed(0)}`, icon: <TrendingUpOutlined />, color: "#00897b", bg: "#e0f2f1" },
+    { label: t("dashboard.total_reports"), value: reports.length, icon: <PeopleOutlined />, color: "#7b1fa2", bg: "#f3e5f5" },
+    { label: t("dashboard.total_revenue"), value: `₹${totalRevenue.toFixed(0)}`, icon: <ScienceOutlined />, color: "#e65100", bg: "#fff3e0" },
   ];
 
   return (
@@ -58,7 +60,7 @@ export default function DoctorDashboardPage() {
       <Sidebar role="doctor" email="doctor@mylab.com" />
       <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h5">Dashboard</Typography>
+          <Typography variant="h5">{t("dashboard.title")}</Typography>
           <Typography variant="body2" color="text.secondary">
             {new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </Typography>
@@ -86,7 +88,7 @@ export default function DoctorDashboardPage() {
         {/* Recent Reports */}
         <Card>
           <CardContent sx={{ pb: 0 }}>
-            <Typography variant="h6" sx={{ mb: 2 }}>Recent Reports</Typography>
+            <Typography variant="h6" sx={{ mb: 2 }}>{t("dashboard.recent")}</Typography>
           </CardContent>
           {loading ? (
             <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
@@ -97,13 +99,13 @@ export default function DoctorDashboardPage() {
               <Table size="small">
                 <TableHead>
                   <TableRow sx={{ "& th": { fontWeight: 600, color: "text.secondary", fontSize: 12, bgcolor: "#f8fafc" } }}>
-                    <TableCell>ID</TableCell>
-                    <TableCell>Patient</TableCell>
-                    <TableCell>Age</TableCell>
-                    <TableCell>Referred By</TableCell>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Amount</TableCell>
-                    <TableCell>Status</TableCell>
+                    <TableCell>{t("table.id")}</TableCell>
+                    <TableCell>{t("table.patient")}</TableCell>
+                    <TableCell>{t("table.age")}</TableCell>
+                    <TableCell>{t("table.referred_by")}</TableCell>
+                    <TableCell>{t("table.date")}</TableCell>
+                    <TableCell>{t("table.amount")}</TableCell>
+                    <TableCell>{t("table.status")}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -126,7 +128,7 @@ export default function DoctorDashboardPage() {
                   {reports.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} align="center" sx={{ py: 4, color: "text.secondary" }}>
-                        No reports yet
+                        {t("dashboard.no_reports")}
                       </TableCell>
                     </TableRow>
                   )}

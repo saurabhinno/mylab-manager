@@ -11,8 +11,10 @@ import {
   VisibilityOffOutlined, LocalHospitalOutlined,
 } from "@mui/icons-material";
 import { apiRequest } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 export default function LoginPage() {
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -55,11 +57,11 @@ export default function LoginPage() {
         <Box sx={{ mb: 3, width: 72, height: 72, borderRadius: 4, bgcolor: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <LocalHospitalOutlined sx={{ fontSize: 40 }} />
         </Box>
-        <Typography variant="h3" sx={{ fontWeight: 800, mb: 1 }}>MyLab</Typography>
-        <Typography variant="h6" sx={{ fontWeight: 400, opacity: 0.85, mb: 4 }}>Diagnostics Portal</Typography>
+        <Typography variant="h3" sx={{ fontWeight: 800, mb: 1 }}>{t("app.name")}</Typography>
+        <Typography variant="h6" sx={{ fontWeight: 400, opacity: 0.85, mb: 4 }}>{t("app.tagline")}</Typography>
         <Box sx={{ maxWidth: 340, textAlign: "center" }}>
           <Typography sx={{ opacity: 0.75, lineHeight: 1.8 }}>
-            Streamlined blood test reporting for doctors and lab staff. Fast, accurate, and paperless.
+            {t("login.branding_text")}
           </Typography>
         </Box>
       </Box>
@@ -72,9 +74,9 @@ export default function LoginPage() {
       }}>
         <Paper elevation={0} sx={{ width: "100%", maxWidth: 400, p: 4, borderRadius: 3 }}>
           <Box sx={{ mb: 4 }}>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: "#0f4c81" }}>Welcome back</Typography>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: "#0f4c81" }}>{t("login.title")}</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Sign in to your account to continue
+              {t("login.subtitle")}
             </Typography>
           </Box>
 
@@ -82,7 +84,7 @@ export default function LoginPage() {
 
           <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <TextField
-              label="Email address"
+              label={t("login.email")}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -93,7 +95,7 @@ export default function LoginPage() {
               }}
             />
             <TextField
-              label="Password"
+              label={t("login.password")}
               type={showPw ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -118,12 +120,12 @@ export default function LoginPage() {
               size="large"
               sx={{ mt: 1, py: 1.4 }}
             >
-              {loading ? "Signing in…" : "Sign In"}
+              {loading ? t("login.signing_in") : t("login.submit")}
             </Button>
           </Box>
 
           <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 3, textAlign: "center" }}>
-            Default doctor: doctor@mylab.com / password
+            {t("login.default_hint")}
           </Typography>
         </Paper>
       </Box>
