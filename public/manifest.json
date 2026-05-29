@@ -1,0 +1,28 @@
+{
+  "name": "MyLab Diagnostics Portal",
+  "short_name": "MyLab",
+  "description": "Blood test reporting platform for doctors and lab staff",
+  "start_url": "/login",
+  "display": "standalone",
+  "background_color": "#0f4c81",
+  "theme_color": "#0f4c81",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
