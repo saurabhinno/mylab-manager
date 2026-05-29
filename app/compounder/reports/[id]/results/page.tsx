@@ -102,7 +102,7 @@ export default function EnterResultsPage() {
   if (loading) {
     return (
       <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-        <Sidebar role="compounder" />
+        <Sidebar role="doctor" />
         <Box sx={{ flexGrow: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <CircularProgress />
         </Box>
@@ -113,7 +113,7 @@ export default function EnterResultsPage() {
   if (!report) {
     return (
       <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-        <Sidebar role="compounder" />
+        <Sidebar role="doctor" />
         <Box sx={{ flexGrow: 1, p: 3 }}>
           <Typography color="error">Report not found</Typography>
         </Box>
@@ -123,7 +123,7 @@ export default function EnterResultsPage() {
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar role="compounder" />
+      <Sidebar role="doctor" />
       <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
           <Button variant="outlined" size="small" startIcon={<ArrowBackOutlined />} onClick={() => router.push("/compounder/reports")}>

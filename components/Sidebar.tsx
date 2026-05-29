@@ -12,7 +12,7 @@ import {
   DashboardOutlined, ScienceOutlined, ArticleOutlined,
   PeopleOutlined, LogoutOutlined, LocalHospitalOutlined, PersonOutlined,
   SettingsOutlined, MenuOutlined, CloseOutlined, ChevronLeftOutlined, ChevronRightOutlined,
-  BiotechOutlined,
+  BiotechOutlined, SwapHorizOutlined,
 } from '@mui/icons-material';
 import { apiRequest } from '@/lib/api';
 import LangSwitcher from '@/components/LangSwitcher';
@@ -32,6 +32,7 @@ export default function Sidebar({ role, email }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [viewAs, setViewAs] = useState<'doctor' | 'compounder'>(role);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -39,15 +40,31 @@ export default function Sidebar({ role, email }: SidebarProps) {
     if (saved === '1') setCollapsed(true);
   }, []);
 
+  // Detect current view based on pathname
+  useEffect(() => {
+    if (pathname.startsWith('/compounder')) {
+      setViewAs('compounder');
+    } else if (pathname.startsWith('/doctor')) {
+      setViewAs('doctor');
+    }
+  }, [pathname]);
+
   function toggleCollapse() {
     const next = !collapsed;
     setCollapsed(next);
     localStorage.setItem('sidebar-collapsed', next ? '1' : '0');
   }
 
+  function switchRole() {
+    if (viewAs === 'doctor') {
+      router.push('/compounder/reports');
+    } else {
+      router.push('/doctor/dashboard');
+    }
+  }
+
   const doctorNav: NavItem[] = [
     { label: t('nav.dashboard'), href: '/doctor/dashboard', icon: <DashboardOutlined /> },
-    { label: t('nav.sample_collection'), href: '/compounder/reports', icon: <BiotechOutlined /> },
     { label: t('nav.tests'), href: '/doctor/tests', icon: <ScienceOutlined /> },
     { label: t('nav.reports'), href: '/doctor/reports', icon: <ArticleOutlined /> },
     { label: t('nav.staff'), href: '/doctor/staff', icon: <PeopleOutlined /> },
@@ -56,10 +73,10 @@ export default function Sidebar({ role, email }: SidebarProps) {
   ];
 
   const compounderNav: NavItem[] = [
-    { label: t('nav.compounder_reports'), href: '/compounder/reports', icon: <DashboardOutlined /> },
+    { label: t('nav.compounder_reports'), href: '/compounder/reports', icon: <BiotechOutlined /> },
   ];
 
-  const nav = role === 'doctor' ? doctorNav : compounderNav;
+  const nav = viewAs === 'doctor' ? doctorNav : compounderNav;
   const currentWidth = collapsed && !isMobile ? COLLAPSED_WIDTH : DRAWER_WIDTH;
 
   async function handleLogout() {
@@ -83,7 +100,6 @@ export default function Sidebar({ role, email }: SidebarProps) {
             </Box>
           )}
         </Box>
-        {/* Collapse toggle on desktop / Close on mobile */}
         {isMobile ? (
           <IconButton onClick={() => setMobileOpen(false)} sx={{ color: 'rgba(255,255,255,0.6)' }}>
             <CloseOutlined fontSize="small" />
@@ -95,7 +111,6 @@ export default function Sidebar({ role, email }: SidebarProps) {
         ) : null}
       </Box>
 
-      {/* Expand button when collapsed */}
       {collapsed && !isMobile && (
         <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
           <IconButton onClick={toggleCollapse} size="small" sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#fff' } }} aria-label="Expand sidebar">
@@ -106,8 +121,35 @@ export default function Sidebar({ role, email }: SidebarProps) {
 
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)', mx: collapsed ? 1 : 2 }} />
 
+      {/* Role switcher for doctors */}
+      {role === 'doctor' && (
+        <Box sx={{ px: collapsed ? 0.8 : 1.5, pt: 1.5 }}>
+          <Tooltip title={collapsed ? (viewAs === 'doctor' ? t('nav.switch_to_compounder') : t('nav.switch_to_doctor')) : ''} placement="right">
+            <ListItemButton
+              onClick={switchRole}
+              sx={{
+                borderRadius: 2, px: collapsed ? 1.5 : 1.5, py: 0.8,
+                justifyContent: collapsed ? 'center' : 'flex-start',
+                bgcolor: 'rgba(255,255,255,0.08)',
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: collapsed ? 0 : 36, color: '#4dd0e1', justifyContent: 'center' }}>
+                <SwapHorizOutlined sx={{ fontSize: 20 }} />
+              </ListItemIcon>
+              {!collapsed && (
+                <ListItemText
+                  primary={viewAs === 'doctor' ? t('nav.switch_to_compounder') : t('nav.switch_to_doctor')}
+                  primaryTypographyProps={{ fontSize: 12, fontWeight: 500, color: '#4dd0e1' }}
+                />
+              )}
+            </ListItemButton>
+          </Tooltip>
+        </Box>
+      )}
+
       {/* Nav */}
-      <List sx={{ px: collapsed ? 0.8 : 1.5, pt: 2, flexGrow: 1 }}>
+      <List sx={{ px: collapsed ? 0.8 : 1.5, pt: 1.5, flexGrow: 1 }}>
         {nav.map((item) => {
           const active = pathname === item.href;
           return (
@@ -142,7 +184,7 @@ export default function Sidebar({ role, email }: SidebarProps) {
         <LangSwitcher collapsed={collapsed} />
       </Box>
 
-      {/* User - click avatar for menu */}
+      {/* User - click for logout menu */}
       <Box sx={{ px: collapsed ? 1 : 2, py: 2, display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 1.5, justifyContent: collapsed ? 'center' : 'flex-start' }}>
         <Tooltip title={collapsed ? (email ?? '') : ''} placement="right">
           <Avatar
@@ -153,12 +195,9 @@ export default function Sidebar({ role, email }: SidebarProps) {
           </Avatar>
         </Tooltip>
         {!collapsed && (
-          <Box
-            sx={{ flexGrow: 1, minWidth: 0, cursor: 'pointer' }}
-            onClick={(e) => setAnchorEl(e.currentTarget)}
-          >
+          <Box sx={{ flexGrow: 1, minWidth: 0, cursor: 'pointer' }} onClick={(e) => setAnchorEl(e.currentTarget)}>
             <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', display: 'block', fontSize: 10 }}>
-              {role === 'doctor' ? t('sidebar.doctor') : t('sidebar.compounder')}
+              {viewAs === 'doctor' ? t('sidebar.doctor') : t('sidebar.compounder')}
             </Typography>
             <Typography variant="caption" sx={{ color: '#fff', fontWeight: 500, fontSize: 11, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {email ?? ''}
@@ -167,14 +206,7 @@ export default function Sidebar({ role, email }: SidebarProps) {
         )}
       </Box>
 
-      {/* Logout menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={() => setAnchorEl(null)}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)} anchorOrigin={{ vertical: 'top', horizontal: 'right' }} transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}>
         <MenuItem onClick={handleLogout} sx={{ gap: 1.5, fontSize: 14 }}>
           <LogoutOutlined sx={{ fontSize: 18 }} />
           {t('common.logout')}
@@ -185,7 +217,6 @@ export default function Sidebar({ role, email }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile hamburger */}
       {isMobile && (
         <Box sx={{ position: 'fixed', top: 12, left: 12, zIndex: 1300, "@media print": { display: "none" } }}>
           <IconButton onClick={() => setMobileOpen(true)} sx={{ bgcolor: '#0f4c81', color: '#fff', '&:hover': { bgcolor: '#0d3d6b' }, boxShadow: 2 }}>
@@ -194,7 +225,6 @@ export default function Sidebar({ role, email }: SidebarProps) {
         </Box>
       )}
 
-      {/* Desktop: permanent drawer */}
       {!isMobile && (
         <Drawer
           variant="permanent"
@@ -207,15 +237,12 @@ export default function Sidebar({ role, email }: SidebarProps) {
         </Drawer>
       )}
 
-      {/* Mobile: temporary drawer */}
       {isMobile && (
         <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={() => setMobileOpen(false)}
-          sx={{
-            '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box', background: 'linear-gradient(180deg, #0f4c81 0%, #0d3d6b 100%)', color: '#fff', border: 'none' },
-          }}
+          sx={{ '& .MuiDrawer-paper': { width: DRAWER_WIDTH, boxSizing: 'border-box', background: 'linear-gradient(180deg, #0f4c81 0%, #0d3d6b 100%)', color: '#fff', border: 'none' } }}
         >
           {drawerContent}
         </Drawer>

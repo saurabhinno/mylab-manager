@@ -21,7 +21,7 @@ import { useI18n } from "@/lib/i18n";
 
 interface TestDef { id: number; name: string; category: string; sample_type: string; price: number; }
 interface ReportItem { id: number; test_name: string; sample_type: string | null; result_value: string; unit: string | null; normal_min: number | null; normal_max: number | null; }
-interface Report { id: number; date: string; patient_name: string; patient_age: number; patient_gender: string | null; patient_phone: string | null; referred_by: string | null; total_price: number; payment_status: string; status: string; reportItems?: ReportItem[]; }
+interface Report { id: number; date: string; patient_name: string; patient_age: number; patient_gender: string | null; patient_phone: string | null; referred_by: string | null; total_price: number; payment_status: string; status: string; reportItems?: ReportItem[]; compounder?: { name: string | null; email: string }; }
 
 type ModalMode = null | "collect" | "results";
 type ViewFilter = "today" | "pending" | "done" | "all";
@@ -210,7 +210,7 @@ export default function CompounderReportsPage() {
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar role="compounder" />
+      <Sidebar role="doctor" />
       <Box sx={{ flexGrow: 1, p: { xs: 2, md: 3 }, overflow: "auto", pb: 12 }} id="main-content" tabIndex={-1}>
         {alert && (
           <Alert severity={alert.type} sx={{ mb: 2, borderRadius: 2, fontSize: 15, py: 1 }} onClose={() => setAlert(null)}>
@@ -296,6 +296,11 @@ export default function CompounderReportsPage() {
                       <Box sx={{ textAlign: "right" }}>
                         <Typography sx={{ fontWeight: 700, color: "#00897b", fontSize: 16 }}>₹{r.total_price.toFixed(0)}</Typography>
                         <Typography variant="caption" color="text.secondary">#{r.id} • {new Date(r.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</Typography>
+                        {r.compounder && (
+                          <Typography variant="caption" sx={{ display: "block", color: "text.disabled", fontSize: 10 }}>
+                            by {r.compounder.name || r.compounder.email.split("@")[0]}
+                          </Typography>
+                        )}
                       </Box>
                     </Box>
 

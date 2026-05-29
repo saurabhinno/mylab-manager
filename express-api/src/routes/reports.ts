@@ -11,7 +11,10 @@ const router = Router();
 router.get("/", async (req: Request, res: Response) => {
   try {
     const reports = await Report.findAll({
-      include: [{ model: ReportItem, as: "reportItems" }],
+      include: [
+        { model: ReportItem, as: "reportItems" },
+        { model: User, as: "compounder", attributes: ["id", "name", "email"] },
+      ],
       order: [["createdAt", "DESC"]],
     });
     return res.json(reports);

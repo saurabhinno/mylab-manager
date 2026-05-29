@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { User } from "@/models/User";
-import { verifyPassword, hashPassword, setSessionCookie, clearSessionCookie } from "@/lib/session";
+import { verifyPassword, hashPassword, setSessionCookie, clearSessionCookie, getUserIdFromCookie } from "@/lib/session";
 
 const router = Router();
 
@@ -54,6 +54,19 @@ router.post("/register", async (req: Request, res: Response) => {
 router.post("/logout", (req: Request, res: Response) => {
   clearSessionCookie(res);
   return res.json({ success: true });
+});
+
+// Get current logged-in user
+router.get("/me", async (req: Request, res: Response) => {
+  const userId = getUserIdFromCookie(req.cookies);
+  if (!userId) return res.status(401).json({ error: "Not authenticated" });
+  try {
+    const user = await User.findByPk(userId, { attributes: ["id", "email", "name", "role"] });
+    if (!user) return res.status(401).json({ error: "User not found" });
+    return res.json(user);
+  } catch (error) {
+    return res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // Get all users (staff list)
