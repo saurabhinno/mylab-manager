@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
-  Box, Typography, Card, CardContent, CardActionArea, Chip, TextField, InputAdornment,
+  Box, Typography, Card, CardContent, Chip, TextField, InputAdornment,
   CircularProgress, Button, IconButton, Dialog, DialogTitle,
   DialogContent, DialogActions, Grid, FormControl, InputLabel, Select,
   MenuItem, FormControlLabel, Switch, Divider, Alert, Fab, Avatar,
-  LinearProgress, Slide,
+  LinearProgress,
 } from "@mui/material";
 import {
   SearchOutlined, AddOutlined, EditOutlined, CloseOutlined,
@@ -24,7 +24,7 @@ interface ReportItem { id: number; test_name: string; sample_type: string | null
 interface Report { id: number; date: string; patient_name: string; patient_age: number; patient_gender: string | null; patient_phone: string | null; referred_by: string | null; total_price: number; payment_status: string; status: string; reportItems?: ReportItem[]; }
 
 type ModalMode = null | "collect" | "results";
-type ViewFilter = "pending" | "done" | "all";
+type ViewFilter = "today" | "pending" | "done" | "all";
 
 export default function CompounderReportsPage() {
   const router = useRouter();
@@ -33,7 +33,7 @@ export default function CompounderReportsPage() {
   const [allTests, setAllTests] = useState<TestDef[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<ViewFilter>("pending");
+  const [filter, setFilter] = useState<ViewFilter>("today");
   const [alert, setAlert] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   // Modal state
@@ -68,6 +68,7 @@ export default function CompounderReportsPage() {
   const filtered = reports.filter((r) => {
     const matchesSearch = !search || r.patient_name.toLowerCase().includes(search.toLowerCase()) ||
       (r.patient_phone || "").includes(search) || String(r.id).includes(search);
+    if (filter === "today") return matchesSearch && r.date === today;
     if (filter === "pending") return matchesSearch && r.status === "sample_collected";
     if (filter === "done") return matchesSearch && (r.status === "results_entered" || r.status === "finalized");
     return matchesSearch;
@@ -241,6 +242,7 @@ export default function CompounderReportsPage() {
         {/* Filter tabs - large touch targets */}
         <Box sx={{ display: "flex", gap: 1, mb: 3 }}>
           {([
+            { key: "today", label: `${t("common.today")} (${todayCount})`, color: "#0f4c81" },
             { key: "pending", label: `${t("common.pending")} (${pendingCount})`, color: "#f59e0b" },
             { key: "done", label: t("common.done"), color: "#10b981" },
             { key: "all", label: t("common.all"), color: "#6b7280" },
@@ -331,15 +333,24 @@ export default function CompounderReportsPage() {
                         </>
                       )}
                       {isDone && (
-                        <Button
-                          variant="outlined"
-                          fullWidth
-                          onClick={() => router.push(`/compounder/reports/${r.id}`)}
-                          sx={{ py: 1.2, fontSize: 14 }}
-                          startIcon={<PrintOutlined />}
-                        >
-                          {t("compounder.view_print")}
-                        </Button>
+                        <>
+                          <Button
+                            variant="outlined"
+                            onClick={() => openResults(r)}
+                            sx={{ py: 1.2, fontSize: 13, flex: 1 }}
+                            startIcon={<EditOutlined />}
+                          >
+                            {t("common.edit")}
+                          </Button>
+                          <Button
+                            variant="contained"
+                            onClick={() => router.push(`/compounder/reports/${r.id}`)}
+                            sx={{ py: 1.2, fontSize: 13, flex: 1 }}
+                            startIcon={<PrintOutlined />}
+                          >
+                            {t("compounder.view_print")}
+                          </Button>
+                        </>
                       )}
                       {r.payment_status !== "paid" && (
                         <Button
