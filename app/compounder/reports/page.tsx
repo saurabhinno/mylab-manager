@@ -295,7 +295,7 @@ export default function CompounderReportsPage() {
                       </Box>
                       <Box sx={{ textAlign: "right" }}>
                         <Typography sx={{ fontWeight: 700, color: "#00897b", fontSize: 16 }}>₹{r.total_price.toFixed(0)}</Typography>
-                        <Typography variant="caption" color="text.secondary">#{r.id}</Typography>
+                        <Typography variant="caption" color="text.secondary">#{r.id} • {new Date(r.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</Typography>
                       </Box>
                     </Box>
 
