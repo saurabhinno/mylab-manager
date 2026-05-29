@@ -1,6 +1,4 @@
 import { Router, Request, Response } from "express";
-import path from "path";
-import fs from "fs";
 import { User } from "@/models/User";
 import { verifyPassword, hashPassword, setSessionCookie, clearSessionCookie } from "@/lib/session";
 
@@ -83,36 +81,11 @@ router.put("/profile/:id", async (req: Request, res: Response) => {
     }
     if (name !== undefined) user.name = name;
 
-    // Handle signature file upload (base64 → file on disk)
+    // Handle signature - store as base64 directly in DB
     if (signature_image === null) {
-      // Remove old file if exists
-      if (user.signature_image) {
-        const oldPath = path.join(__dirname, "../../uploads", user.signature_image);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      }
       user.signature_image = null;
     } else if (signature_image && signature_image.startsWith("data:image/")) {
-      // Save base64 to file
-      const uploadsDir = path.join(__dirname, "../../uploads/signatures");
-      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-      const matches = signature_image.match(/^data:image\/(png|jpeg|webp|jpg);base64,(.+)$/);
-      if (!matches) {
-        return res.status(400).json({ error: "Invalid image format." });
-      }
-      const ext = matches[1] === "jpeg" ? "jpg" : matches[1];
-      const buffer = Buffer.from(matches[2], "base64");
-      const filename = `signature_${id}_${Date.now()}.${ext}`;
-      const filePath = path.join(uploadsDir, filename);
-
-      // Remove old file
-      if (user.signature_image) {
-        const oldPath = path.join(__dirname, "../../uploads", user.signature_image);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      }
-
-      fs.writeFileSync(filePath, buffer);
-      user.signature_image = `signatures/${filename}`;
+      user.signature_image = signature_image;
     }
 
     await user.save();

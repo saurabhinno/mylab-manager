@@ -11,8 +11,6 @@ import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
 interface ReportItemData {
   id: number;
   test_name: string;
@@ -120,7 +118,7 @@ export default function DoctorReportViewPage() {
           {/* HEADER */}
           <Box sx={{ px: 5, pt: 4, pb: 2, borderBottom: "3px solid #0f4c81" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
-              {lab?.logo_path && <Box component="img" src={`${API_URL}/uploads/${lab.logo_path}`} alt="Logo" sx={{ height: 55, objectFit: "contain" }} />}
+              {lab?.logo_path && <Box component="img" src={lab.logo_path} alt="Logo" sx={{ height: 55, objectFit: "contain" }} />}
               <Box sx={{ flexGrow: 1, textAlign: lab?.logo_path ? "left" : "center" }}>
                 <Typography sx={{ fontSize: 22, fontWeight: 800, color: "#0f4c81", lineHeight: 1.2 }}>{lab?.lab_name || "MyLab Diagnostics"}</Typography>
                 {lab?.header_text && <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic", fontSize: 11 }}>{lab.header_text}</Typography>}
@@ -206,7 +204,7 @@ export default function DoctorReportViewPage() {
           <Box sx={{ mt: "auto", px: 5, pb: 3, pt: 2 }}>
             <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
               <Box sx={{ textAlign: "center", minWidth: 180 }}>
-                {report.doctor?.signature_image && <Box component="img" src={`${API_URL}/uploads/${report.doctor.signature_image}`} alt="Signature" sx={{ height: 45, mb: 0.5, objectFit: "contain" }} />}
+                {report.doctor?.signature_image && <Box component="img" src={report.doctor.signature_image} alt="Signature" sx={{ height: 45, mb: 0.5, objectFit: "contain" }} />}
                 <Divider />
                 <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5, fontSize: 12 }}>{report.doctor?.name || "Doctor"}</Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9 }}>Authorized Signatory</Typography>

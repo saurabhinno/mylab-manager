@@ -11,8 +11,6 @@ import {
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
 export default function ProfilePage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -36,7 +34,7 @@ export default function ProfilePage() {
           setEmail(d.email || "");
           if (d.signature_image) {
             setSignaturePath(d.signature_image);
-            setSignaturePreview(`${API_URL}/uploads/${d.signature_image}`);
+            setSignaturePreview(d.signature_image);
           }
         }
         setLoading(false);
@@ -68,7 +66,7 @@ export default function ProfilePage() {
         const data = await res.json();
         if (data.user?.signature_image) {
           setSignaturePath(data.user.signature_image);
-          setSignaturePreview(`${API_URL}/uploads/${data.user.signature_image}`);
+          setSignaturePreview(data.user.signature_image);
         }
         setSignatureFile(null);
         setAlert({ type: "success", msg: "Signature saved." });
@@ -98,7 +96,7 @@ export default function ProfilePage() {
       const data = await res.json();
       if (data.user?.signature_image) {
         setSignaturePath(data.user.signature_image);
-        setSignaturePreview(`${API_URL}/uploads/${data.user.signature_image}`);
+        setSignaturePreview(data.user.signature_image);
       } else {
         setSignaturePath(null);
       }

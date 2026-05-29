@@ -9,8 +9,6 @@ import { SaveOutlined, ImageOutlined, SettingsOutlined, DeleteOutlined } from "@
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
 export default function SettingsPage() {
   const [labName, setLabName] = useState("");
   const [address, setAddress] = useState("");
@@ -36,7 +34,7 @@ export default function SettingsPage() {
           setEmail(d.email || "");
           setHeaderText(d.header_text || "");
           setFooterText(d.footer_text || "");
-          if (d.logo_path) setLogoPreview(`${API_URL}/uploads/${d.logo_path}`);
+          if (d.logo_path) setLogoPreview(d.logo_path);
         }
         setLoading(false);
       })
@@ -62,7 +60,7 @@ export default function SettingsPage() {
     setSaving(false);
     if (res.ok) {
       const data = await res.json();
-      if (data.logo_path) setLogoPreview(`${API_URL}/uploads/${data.logo_path}`);
+      if (data.logo_path) setLogoPreview(data.logo_path);
       setLogoFile(null);
       setAlert({ type: "success", msg: "Settings saved." });
     } else {

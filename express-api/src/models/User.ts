@@ -36,7 +36,7 @@ User.init(
       defaultValue: "compounder",
     },
     signature_image: {
-      type: DataTypes.TEXT,
+      type: DataTypes.TEXT("long"),
       allowNull: true,
     },
   },
