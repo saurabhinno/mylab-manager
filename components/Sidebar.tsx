@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   Box, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
   Typography, Divider, Avatar, Tooltip, IconButton, useMediaQuery, useTheme,
+  Menu, MenuItem,
 } from '@mui/material';
 import {
   DashboardOutlined, ScienceOutlined, ArticleOutlined,
@@ -20,7 +21,6 @@ const DRAWER_WIDTH = 240;
 const COLLAPSED_WIDTH = 64;
 
 interface NavItem { label: string; href: string; icon: React.ReactNode; }
-
 interface SidebarProps { role: 'doctor' | 'compounder'; email?: string; }
 
 export default function Sidebar({ role, email }: SidebarProps) {
@@ -30,9 +30,9 @@ export default function Sidebar({ role, email }: SidebarProps) {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const { t } = useI18n();
 
-  // Persist collapsed state
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed');
     if (saved === '1') setCollapsed(true);
@@ -61,36 +61,46 @@ export default function Sidebar({ role, email }: SidebarProps) {
   const currentWidth = collapsed && !isMobile ? COLLAPSED_WIDTH : DRAWER_WIDTH;
 
   async function handleLogout() {
+    setAnchorEl(null);
     await apiRequest('/api/auth/logout', { method: 'POST' });
     router.push('/login');
   }
 
   const drawerContent = (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Logo */}
-      <Box sx={{ px: collapsed ? 1.5 : 2.5, py: 2.5, display: 'flex', alignItems: 'center', gap: 1.5, justifyContent: collapsed ? 'center' : 'space-between' }}>
-        {!collapsed && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ width: 34, height: 34, borderRadius: 2, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <LocalHospitalOutlined sx={{ color: '#fff', fontSize: 20 }} />
-            </Box>
+      {/* Top: Logo + Collapse toggle */}
+      <Box sx={{ px: collapsed ? 1.5 : 2.5, py: 2, display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ width: 34, height: 34, borderRadius: 2, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <LocalHospitalOutlined sx={{ color: '#fff', fontSize: 20 }} />
+          </Box>
+          {!collapsed && (
             <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>{t('app.name')}</Typography>
               <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontSize: 9 }}>{t('app.tagline')}</Typography>
             </Box>
-          </Box>
-        )}
-        {collapsed && (
-          <Box sx={{ width: 34, height: 34, borderRadius: 2, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <LocalHospitalOutlined sx={{ color: '#fff', fontSize: 20 }} />
-          </Box>
-        )}
-        {isMobile && (
+          )}
+        </Box>
+        {/* Collapse toggle on desktop / Close on mobile */}
+        {isMobile ? (
           <IconButton onClick={() => setMobileOpen(false)} sx={{ color: 'rgba(255,255,255,0.6)' }}>
             <CloseOutlined fontSize="small" />
           </IconButton>
-        )}
+        ) : !collapsed ? (
+          <IconButton onClick={toggleCollapse} size="small" sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#fff' } }} aria-label="Collapse sidebar">
+            <ChevronLeftOutlined sx={{ fontSize: 20 }} />
+          </IconButton>
+        ) : null}
       </Box>
+
+      {/* Expand button when collapsed */}
+      {collapsed && !isMobile && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
+          <IconButton onClick={toggleCollapse} size="small" sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#fff' } }} aria-label="Expand sidebar">
+            <ChevronRightOutlined sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Box>
+      )}
 
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)', mx: collapsed ? 1 : 2 }} />
 
@@ -130,27 +140,21 @@ export default function Sidebar({ role, email }: SidebarProps) {
         <LangSwitcher collapsed={collapsed} />
       </Box>
 
-      {/* Collapse toggle (desktop only) */}
-      {!isMobile && (
-        <Box sx={{ px: collapsed ? 1 : 2, pb: 1, display: 'flex', justifyContent: collapsed ? 'center' : 'flex-end' }}>
-          <IconButton
-            onClick={toggleCollapse}
-            size="small"
-            sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#fff' } }}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {collapsed ? <ChevronRightOutlined sx={{ fontSize: 18 }} /> : <ChevronLeftOutlined sx={{ fontSize: 18 }} />}
-          </IconButton>
-        </Box>
-      )}
-
-      {/* User */}
+      {/* User - click avatar for menu */}
       <Box sx={{ px: collapsed ? 1 : 2, py: 2, display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 1.5, justifyContent: collapsed ? 'center' : 'flex-start' }}>
-        <Avatar sx={{ width: 30, height: 30, bgcolor: 'rgba(255,255,255,0.2)', fontSize: 12 }}>
-          {email?.[0]?.toUpperCase() ?? 'U'}
-        </Avatar>
+        <Tooltip title={collapsed ? (email ?? '') : ''} placement="right">
+          <Avatar
+            onClick={(e) => setAnchorEl(e.currentTarget)}
+            sx={{ width: 32, height: 32, bgcolor: 'rgba(255,255,255,0.2)', fontSize: 13, cursor: 'pointer', '&:hover': { bgcolor: 'rgba(255,255,255,0.35)' } }}
+          >
+            {email?.[0]?.toUpperCase() ?? 'U'}
+          </Avatar>
+        </Tooltip>
         {!collapsed && (
-          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Box
+            sx={{ flexGrow: 1, minWidth: 0, cursor: 'pointer' }}
+            onClick={(e) => setAnchorEl(e.currentTarget)}
+          >
             <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', display: 'block', fontSize: 10 }}>
               {role === 'doctor' ? t('sidebar.doctor') : t('sidebar.compounder')}
             </Typography>
@@ -159,17 +163,21 @@ export default function Sidebar({ role, email }: SidebarProps) {
             </Typography>
           </Box>
         )}
-        <Tooltip title={t('common.logout')}>
-          <IconButton
-            onClick={handleLogout}
-            aria-label={t('common.logout')}
-            size="small"
-            sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#fff' }, '&:focus-visible': { outline: '2px solid #fff', outlineOffset: 2 } }}
-          >
-            <LogoutOutlined sx={{ fontSize: 18 }} />
-          </IconButton>
-        </Tooltip>
       </Box>
+
+      {/* Logout menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <MenuItem onClick={handleLogout} sx={{ gap: 1.5, fontSize: 14 }}>
+          <LogoutOutlined sx={{ fontSize: 18 }} />
+          {t('common.logout')}
+        </MenuItem>
+      </Menu>
     </Box>
   );
 
