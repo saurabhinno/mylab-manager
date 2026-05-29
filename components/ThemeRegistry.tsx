@@ -2,6 +2,7 @@
 
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { I18nProvider } from '@/lib/i18n';
 
 const theme = createTheme({
   palette: {
@@ -69,7 +70,7 @@ export default function ThemeRegistry({ children }: { children: React.ReactNode 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      {children}
+      <I18nProvider>{children}</I18nProvider>
     </ThemeProvider>
   );
 }

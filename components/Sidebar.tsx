@@ -13,6 +13,8 @@ import {
   SettingsOutlined, MenuOutlined, CloseOutlined,
 } from '@mui/icons-material';
 import { apiRequest } from '@/lib/api';
+import LangSwitcher from '@/components/LangSwitcher';
+import { useI18n } from '@/lib/i18n';
 
 const DRAWER_WIDTH = 240;
 
@@ -95,6 +97,11 @@ export default function Sidebar({ role, email }: SidebarProps) {
       </List>
 
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)', mx: 2 }} />
+
+      {/* Language Switcher */}
+      <Box sx={{ px: 2, py: 1.5, display: 'flex', justifyContent: 'center' }}>
+        <LangSwitcher compact />
+      </Box>
 
       {/* User */}
       <Box sx={{ px: 2, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>

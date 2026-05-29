@@ -17,6 +17,7 @@ import {
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 interface TestDef { id: number; name: string; category: string; sample_type: string; price: number; }
 interface ReportItem { id: number; test_name: string; sample_type: string | null; result_value: string; unit: string | null; normal_min: number | null; normal_max: number | null; }
@@ -27,6 +28,7 @@ type ViewFilter = "pending" | "done" | "all";
 
 export default function CompounderReportsPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [reports, setReports] = useState<Report[]>([]);
   const [allTests, setAllTests] = useState<TestDef[]>([]);
   const [search, setSearch] = useState("");
@@ -217,7 +219,7 @@ export default function CompounderReportsPage() {
 
         {/* Header with stats */}
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>Reports</Typography>
+          <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>{t("compounder.reports")}</Typography>
           <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
             <Chip icon={<ScienceOutlined sx={{ fontSize: 16 }} />} label={`${todayCount} today`} size="small" variant="outlined" />
             {pendingCount > 0 && <Chip label={`${pendingCount} pending`} size="small" color="warning" />}
@@ -226,7 +228,7 @@ export default function CompounderReportsPage() {
 
         {/* Search bar - prominent */}
         <TextField
-          placeholder="🔍 Search by name, phone number, or ID…"
+          placeholder={`🔍 ${t("compounder.search_placeholder")}`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           fullWidth
@@ -239,9 +241,9 @@ export default function CompounderReportsPage() {
         {/* Filter tabs - large touch targets */}
         <Box sx={{ display: "flex", gap: 1, mb: 3 }}>
           {([
-            { key: "pending", label: `Pending (${pendingCount})`, color: "#f59e0b" },
-            { key: "done", label: "Completed", color: "#10b981" },
-            { key: "all", label: "All", color: "#6b7280" },
+            { key: "pending", label: `${t("common.pending")} (${pendingCount})`, color: "#f59e0b" },
+            { key: "done", label: t("common.done"), color: "#10b981" },
+            { key: "all", label: t("common.all"), color: "#6b7280" },
           ] as const).map((f) => (
             <Button
               key={f.key}
@@ -266,9 +268,9 @@ export default function CompounderReportsPage() {
           <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}><CircularProgress size={32} /></Box>
         ) : filtered.length === 0 ? (
           <Box sx={{ textAlign: "center", py: 6 }}>
-            <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>No reports found</Typography>
+            <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>{t("compounder.no_reports")}</Typography>
             <Typography variant="body2" color="text.secondary">
-              {filter === "pending" ? "All caught up! No pending results." : "Try a different search or filter."}
+              {filter === "pending" ? t("compounder.all_caught_up") : ""}
             </Typography>
           </Box>
         ) : (
@@ -305,7 +307,7 @@ export default function CompounderReportsPage() {
                           sx={{ py: 1.2, fontSize: 14, fontWeight: 600 }}
                           startIcon={<EditOutlined />}
                         >
-                          Enter Results
+                          {t("compounder.enter_results")}
                         </Button>
                       )}
                       {r.status === "results_entered" && (
@@ -336,7 +338,7 @@ export default function CompounderReportsPage() {
                           sx={{ py: 1.2, fontSize: 14 }}
                           startIcon={<PrintOutlined />}
                         >
-                          View / Print
+                          {t("compounder.view_print")}
                         </Button>
                       )}
                       {r.payment_status !== "paid" && (
@@ -370,7 +372,7 @@ export default function CompounderReportsPage() {
             boxShadow: "0 4px 20px rgba(15,76,129,0.4)",
             zIndex: 1200,
           }}
-          aria-label="New Sample"
+          aria-label={t("compounder.new_sample")}
         >
           <AddOutlined sx={{ fontSize: 32 }} />
         </Fab>
@@ -380,7 +382,7 @@ export default function CompounderReportsPage() {
           <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1, pt: 2 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <PersonOutlined sx={{ color: "primary.main" }} />
-              <Typography variant="h6" sx={{ fontWeight: 700 }}>New Sample</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>{t("compounder.new_sample")}</Typography>
             </Box>
             <IconButton onClick={closeModal} size="large"><CloseOutlined /></IconButton>
           </DialogTitle>
@@ -390,7 +392,7 @@ export default function CompounderReportsPage() {
               <Box sx={{ mb: 3 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
                   <HistoryOutlined sx={{ fontSize: 16, color: "text.secondary" }} />
-                  <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", textTransform: "uppercase" }}>Recent Patients</Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", textTransform: "uppercase" }}>{t("compounder.recent_patients")}</Typography>
                 </Box>
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                   {recentPatients.map((p, i) => (
@@ -409,7 +411,7 @@ export default function CompounderReportsPage() {
             <Grid container spacing={2}>
               <Grid item xs={12}>
                 <TextField
-                  label="Patient Name"
+                  label={t("compounder.patient_name")}
                   value={patientName}
                   onChange={(e) => setPatientName(e.target.value)}
                   fullWidth
@@ -419,12 +421,12 @@ export default function CompounderReportsPage() {
                 />
               </Grid>
               <Grid item xs={4}>
-                <TextField label="Age" type="number" value={age} onChange={(e) => setAge(e.target.value)} fullWidth inputProps={{ min: 0, inputMode: "numeric" }} />
+                <TextField label={t("compounder.age")} type="number" value={age} onChange={(e) => setAge(e.target.value)} fullWidth inputProps={{ min: 0, inputMode: "numeric" }} />
               </Grid>
               <Grid item xs={4}>
                 <FormControl fullWidth>
-                  <InputLabel>Gender</InputLabel>
-                  <Select value={gender} onChange={(e) => setGender(e.target.value)} label="Gender">
+                  <InputLabel>{t("compounder.gender")}</InputLabel>
+                  <Select value={gender} onChange={(e) => setGender(e.target.value)} label={t("compounder.gender")}>
                     <MenuItem value="">—</MenuItem>
                     <MenuItem value="M">Male</MenuItem>
                     <MenuItem value="F">Female</MenuItem>
@@ -441,7 +443,7 @@ export default function CompounderReportsPage() {
               </Grid>
               <Grid item xs={12}>
                 <TextField
-                  label="Phone Number"
+                  label={t("compounder.phone")}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   fullWidth
@@ -450,7 +452,7 @@ export default function CompounderReportsPage() {
                 />
               </Grid>
               <Grid item xs={12}>
-                <TextField label="Referred By" value={referredBy} onChange={(e) => setReferredBy(e.target.value)} fullWidth />
+                <TextField label={t("compounder.referred_by")} value={referredBy} onChange={(e) => setReferredBy(e.target.value)} fullWidth />
               </Grid>
 
               {/* Tests selection */}
@@ -458,9 +460,9 @@ export default function CompounderReportsPage() {
                 <Divider sx={{ my: 1 }} />
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2, mt: 1 }}>
                   <ScienceOutlined sx={{ color: "primary.main" }} />
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Select Tests</Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{t("compounder.select_tests")}</Typography>
                   {selectedTestIds.length > 0 && (
-                    <Chip label={`${selectedTestIds.length} selected • ₹${totalPrice}`} color="primary" sx={{ ml: "auto", fontWeight: 700, fontSize: 13 }} />
+                    <Chip label={`${selectedTestIds.length} ${t("compounder.selected")} • ₹${totalPrice}`} color="primary" sx={{ ml: "auto", fontWeight: 700, fontSize: 13 }} />
                   )}
                 </Box>
                 {Object.entries(testsByCategory).map(([cat, tests]) => (
@@ -484,10 +486,10 @@ export default function CompounderReportsPage() {
             </Grid>
           </DialogContent>
           <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid #e2e8f0" }}>
-            <Button onClick={closeModal} variant="outlined" size="large" sx={{ px: 3 }}>Cancel</Button>
+            <Button onClick={closeModal} variant="outlined" size="large" sx={{ px: 3 }}>{t("common.cancel")}</Button>
             <Button onClick={handleCollect} variant="contained" size="large" disabled={saving} sx={{ px: 4, py: 1.5, fontSize: 15 }}
               startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <CheckCircleOutlined />}>
-              {saving ? "Saving…" : "Register Sample"}
+              {saving ? t("common.loading") : t("compounder.register_sample")}
             </Button>
           </DialogActions>
         </Dialog>
@@ -497,7 +499,7 @@ export default function CompounderReportsPage() {
           <DialogTitle sx={{ pb: 1, pt: 2 }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <Box>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>Enter Results</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>{t("compounder.enter_results")}</Typography>
                 <Typography variant="body2" color="text.secondary">
                   {activeReport?.patient_name} • #{activeReport?.id}
                 </Typography>
@@ -507,7 +509,7 @@ export default function CompounderReportsPage() {
             {/* Progress bar */}
             <Box sx={{ mt: 1.5 }}>
               <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                <Typography variant="caption" color="text.secondary">{filledCount} of {testItems.length} filled</Typography>
+                <Typography variant="caption" color="text.secondary">{filledCount} of {testItems.length} {t("compounder.filled_of")}</Typography>
                 <Typography variant="caption" color="text.secondary">{Math.round(progress)}%</Typography>
               </Box>
               <LinearProgress variant="determinate" value={progress} sx={{ height: 6, borderRadius: 3 }} />
@@ -519,7 +521,7 @@ export default function CompounderReportsPage() {
               <Box sx={{ textAlign: "center", py: 4 }}>
                 {/* Test counter */}
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: 13 }}>
-                  Test {currentTestIdx + 1} of {testItems.length}
+                  {t("compounder.test_of")} {currentTestIdx + 1} / {testItems.length}
                 </Typography>
 
                 {/* Test name - large */}
@@ -540,7 +542,7 @@ export default function CompounderReportsPage() {
                   value={results[currentItem.id] || ""}
                   onChange={(e) => setResults((p) => ({ ...p, [currentItem.id]: e.target.value }))}
                   onKeyDown={handleResultKeyDown}
-                  placeholder="Enter value"
+                  placeholder={t("compounder.enter_value")}
                   inputProps={{ inputMode: "decimal", style: { fontSize: 32, textAlign: "center", fontWeight: 700 } }}
                   sx={{ width: "100%", maxWidth: 280, mx: "auto", "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
                 />
@@ -552,7 +554,7 @@ export default function CompounderReportsPage() {
                   if (val && currentItem.normal_min != null && currentItem.normal_max != null && !isNaN(numVal)) {
                     if (numVal < currentItem.normal_min) return <Chip label="↓ LOW" color="warning" sx={{ mt: 2, fontSize: 14, py: 2, fontWeight: 700 }} />;
                     if (numVal > currentItem.normal_max) return <Chip label="↑ HIGH" color="error" sx={{ mt: 2, fontSize: 14, py: 2, fontWeight: 700 }} />;
-                    return <Chip label="✓ Normal" color="success" sx={{ mt: 2, fontSize: 14, py: 2, fontWeight: 700 }} />;
+                    return <Chip label={`✓ ${t("compounder.normal")}`} color="success" sx={{ mt: 2, fontSize: 14, py: 2, fontWeight: 700 }} />;
                   }
                   return null;
                 })()}
@@ -570,7 +572,7 @@ export default function CompounderReportsPage() {
                 sx={{ flex: 1, py: 1.5, fontSize: 15 }}
                 startIcon={<NavigateBeforeOutlined />}
               >
-                Previous
+                {t("compounder.previous")}
               </Button>
               <Button
                 variant="contained"
@@ -579,17 +581,17 @@ export default function CompounderReportsPage() {
                 sx={{ flex: 1, py: 1.5, fontSize: 15 }}
                 endIcon={<NavigateNextOutlined />}
               >
-                Next
+                {t("compounder.next")}
               </Button>
             </Box>
             <Divider sx={{ mb: 2 }} />
             <Box sx={{ display: "flex", gap: 1.5 }}>
               <Button onClick={() => handleSaveResults(false)} variant="outlined" fullWidth disabled={saving} sx={{ py: 1.3, fontSize: 14 }}>
-                Save Draft
+                {t("compounder.save_draft")}
               </Button>
               <Button onClick={() => handleSaveResults(true)} variant="contained" fullWidth disabled={saving} color="success" sx={{ py: 1.3, fontSize: 14 }}
                 startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <CheckCircleOutlined />}>
-                {saving ? "Saving…" : "Finalize & Print"}
+                {saving ? t("common.loading") : t("compounder.finalize_print")}
               </Button>
             </Box>
           </Box>
