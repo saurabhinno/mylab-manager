@@ -44,6 +44,8 @@ html, body {
 }
 
 @media print {
+  @page { margin: 0; size: A4 portrait; }
+
   body {
     background: #fff !important;
     -webkit-print-color-adjust: exact;
@@ -51,40 +53,42 @@ html, body {
     padding: 0 !important;
     margin: 0 !important;
   }
-  @page { margin: 0; size: A4 portrait; }
 
-  /* Hide everything that's not the report */
-  .skip-to-content,
-  .MuiDrawer-root { display: none !important; }
-
-  /* Reset all containers to not constrain the report */
-  body, body > *, body > * > *, body > * > * > * {
-    display: block !important;
-    position: static !important;
-    overflow: visible !important;
-    height: auto !important;
-    min-height: 0 !important;
-    max-height: none !important;
-    width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    background: none !important;
-    box-shadow: none !important;
+  /* Hide everything */
+  body * {
+    visibility: hidden;
+    position: static;
+    overflow: visible;
   }
 
-  /* The report page itself */
+  /* Show only the report and its children */
+  #report-page,
+  #report-page * {
+    visibility: visible !important;
+  }
+
   #report-page {
-    display: flex !important;
-    flex-direction: column !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
     width: 100% !important;
-    height: 100vh !important;
-    min-height: 100vh !important;
-    max-height: 100vh !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
-    margin: 0 !important;
     overflow: hidden !important;
-    page-break-after: avoid;
-    page-break-inside: avoid;
+    display: flex !important;
+    flex-direction: column !important;
+    z-index: 99999;
+  }
+
+  /* Ensure nothing else creates pages */
+  .skip-to-content,
+  .MuiDrawer-root,
+  .MuiDrawer-paper {
+    display: none !important;
   }
 }
