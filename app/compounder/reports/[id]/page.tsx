@@ -60,6 +60,7 @@ export default function ReportViewPage() {
   const params = useParams();
   const [report, setReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [autoPrinted, setAutoPrinted] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -69,6 +70,17 @@ export default function ReportViewPage() {
         .catch(() => setLoading(false));
     }
   }, [params.id]);
+
+  // Auto-print when navigated from finalization
+  useEffect(() => {
+    if (report && !autoPrinted && typeof window !== "undefined") {
+      const fromFinalize = new URLSearchParams(window.location.search).get("print");
+      if (fromFinalize === "1") {
+        setAutoPrinted(true);
+        setTimeout(() => window.print(), 500);
+      }
+    }
+  }, [report, autoPrinted]);
 
   if (loading) {
     return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh" }}><CircularProgress /></Box>;

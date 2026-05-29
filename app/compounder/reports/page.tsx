@@ -1,55 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
-  Box, Typography, Card, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, Chip, TextField, InputAdornment,
-  CircularProgress, Button, IconButton, Tooltip, Dialog, DialogTitle,
+  Box, Typography, Card, CardContent, CardActionArea, Chip, TextField, InputAdornment,
+  CircularProgress, Button, IconButton, Dialog, DialogTitle,
   DialogContent, DialogActions, Grid, FormControl, InputLabel, Select,
-  MenuItem, FormControlLabel, Switch, Divider, Alert, ButtonGroup,
+  MenuItem, FormControlLabel, Switch, Divider, Alert, Fab, Avatar,
+  LinearProgress, Slide,
 } from "@mui/material";
 import {
-  SearchOutlined, AddOutlined, EditOutlined, VisibilityOutlined,
-  PaymentOutlined, CloseOutlined, ScienceOutlined, PersonOutlined,
-  PrintOutlined, CheckCircleOutlined, TodayOutlined,
+  SearchOutlined, AddOutlined, EditOutlined, CloseOutlined,
+  ScienceOutlined, PersonOutlined, PrintOutlined, CheckCircleOutlined,
+  PhoneOutlined, NavigateNextOutlined, NavigateBeforeOutlined,
+  PaymentOutlined, HistoryOutlined,
 } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 
-interface TestDef {
-  id: number;
-  name: string;
-  category: string;
-  sample_type: string;
-  price: number;
-}
-
-interface ReportItem {
-  id: number;
-  test_name: string;
-  sample_type: string | null;
-  result_value: string;
-  unit: string | null;
-  normal_min: number | null;
-  normal_max: number | null;
-}
-
-interface Report {
-  id: number;
-  date: string;
-  patient_name: string;
-  patient_age: number;
-  patient_gender: string | null;
-  patient_phone: string | null;
-  referred_by: string | null;
-  total_price: number;
-  payment_status: string;
-  status: string;
-  reportItems?: ReportItem[];
-}
+interface TestDef { id: number; name: string; category: string; sample_type: string; price: number; }
+interface ReportItem { id: number; test_name: string; sample_type: string | null; result_value: string; unit: string | null; normal_min: number | null; normal_max: number | null; }
+interface Report { id: number; date: string; patient_name: string; patient_age: number; patient_gender: string | null; patient_phone: string | null; referred_by: string | null; total_price: number; payment_status: string; status: string; reportItems?: ReportItem[]; }
 
 type ModalMode = null | "collect" | "results";
+type ViewFilter = "pending" | "done" | "all";
 
 export default function CompounderReportsPage() {
   const router = useRouter();
@@ -57,7 +31,7 @@ export default function CompounderReportsPage() {
   const [allTests, setAllTests] = useState<TestDef[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "today" | "pending">("today");
+  const [filter, setFilter] = useState<ViewFilter>("pending");
   const [alert, setAlert] = useState<{ type: "success" | "error"; msg: string } | null>(null);
 
   // Modal state
@@ -74,8 +48,10 @@ export default function CompounderReportsPage() {
   const [isPaid, setIsPaid] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Results form
+  // Results form - wizard style
   const [results, setResults] = useState<Record<number, string>>({});
+  const [currentTestIdx, setCurrentTestIdx] = useState(0);
+  const resultInputRef = useRef<HTMLInputElement>(null);
 
   const loadReports = () =>
     apiRequest("/api/reports").then((r) => r.json()).then((d) => { setReports(Array.isArray(d) ? d : []); setLoading(false); });
@@ -88,13 +64,20 @@ export default function CompounderReportsPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   const filtered = reports.filter((r) => {
-    const matchesSearch = r.patient_name.toLowerCase().includes(search.toLowerCase()) ||
+    const matchesSearch = !search || r.patient_name.toLowerCase().includes(search.toLowerCase()) ||
       (r.patient_phone || "").includes(search) || String(r.id).includes(search);
-    let matchesFilter = true;
-    if (filter === "today") matchesFilter = r.date === today;
-    else if (filter === "pending") matchesFilter = r.status === "sample_collected";
-    return matchesSearch && matchesFilter;
+    if (filter === "pending") return matchesSearch && r.status === "sample_collected";
+    if (filter === "done") return matchesSearch && (r.status === "results_entered" || r.status === "finalized");
+    return matchesSearch;
   });
+
+  // Recent patients (last 5 unique)
+  const recentPatients = reports.slice(0, 10).reduce((acc, r) => {
+    if (acc.length < 5 && !acc.find((p) => p.patient_phone === r.patient_phone && p.patient_name === r.patient_name)) {
+      acc.push(r);
+    }
+    return acc;
+  }, [] as Report[]);
 
   // Group tests by category
   const testsByCategory = allTests.reduce((acc, t) => {
@@ -103,15 +86,23 @@ export default function CompounderReportsPage() {
     return acc;
   }, {} as Record<string, TestDef[]>);
 
-  function openCollect() {
-    setPatientName(""); setAge(""); setGender(""); setPhone(""); setReferredBy("");
+  function openCollect(prefill?: Report) {
+    if (prefill) {
+      setPatientName(prefill.patient_name);
+      setAge(String(prefill.patient_age || ""));
+      setGender(prefill.patient_gender || "");
+      setPhone(prefill.patient_phone || "");
+      setReferredBy(prefill.referred_by || "");
+    } else {
+      setPatientName(""); setAge(""); setGender(""); setPhone(""); setReferredBy("");
+    }
     setSelectedTestIds([]); setIsPaid(false);
     setModal("collect");
   }
 
   function openResults(report: Report) {
     setActiveReport(report);
-    // Load report details
+    setCurrentTestIdx(0);
     apiRequest(`/api/reports/${report.id}`).then((r) => r.json()).then((d) => {
       if (d.reportItems) {
         const init: Record<number, string> = {};
@@ -124,6 +115,13 @@ export default function CompounderReportsPage() {
   }
 
   function closeModal() { setModal(null); setActiveReport(null); }
+
+  // Focus result input when test changes
+  useEffect(() => {
+    if (modal === "results" && resultInputRef.current) {
+      setTimeout(() => resultInputRef.current?.focus(), 100);
+    }
+  }, [currentTestIdx, modal]);
 
   async function handleCollect() {
     if (!patientName.trim()) { setAlert({ type: "error", msg: "Patient name required" }); return; }
@@ -139,7 +137,9 @@ export default function CompounderReportsPage() {
     });
     setSaving(false);
     if (res.ok) {
-      setAlert({ type: "success", msg: `Sample registered for ${patientName}` });
+      // Success feedback
+      if (navigator.vibrate) navigator.vibrate(100);
+      setAlert({ type: "success", msg: `✓ Sample registered for ${patientName}` });
       closeModal();
       loadReports();
     } else {
@@ -159,11 +159,12 @@ export default function CompounderReportsPage() {
     }
     setSaving(false);
     if (res.ok) {
+      if (navigator.vibrate) navigator.vibrate(100);
       if (finalize) {
         closeModal();
-        router.push(`/compounder/reports/${activeReport.id}`);
+        router.push(`/compounder/reports/${activeReport.id}?print=1`);
       } else {
-        setAlert({ type: "success", msg: "Results saved" });
+        setAlert({ type: "success", msg: "✓ Results saved" });
         closeModal();
         loadReports();
       }
@@ -175,181 +176,305 @@ export default function CompounderReportsPage() {
 
   async function markPaid(id: number) {
     await apiRequest(`/api/reports/${id}/payment`, { method: "PUT", body: JSON.stringify({ payment_status: "paid" }) });
+    if (navigator.vibrate) navigator.vibrate(50);
     setReports((prev) => prev.map((r) => r.id === id ? { ...r, payment_status: "paid" } : r));
   }
 
   const selectedTests = allTests.filter((t) => selectedTestIds.includes(t.id));
   const totalPrice = selectedTests.reduce((s, t) => s + t.price, 0);
 
-  const statusConfig: Record<string, { label: string; color: "warning" | "info" | "success" }> = {
-    sample_collected: { label: "Pending", color: "warning" },
-    results_entered: { label: "Done", color: "info" },
-    finalized: { label: "Final", color: "success" },
-  };
+  // Wizard: current test item
+  const testItems = activeReport?.reportItems || [];
+  const currentItem = testItems[currentTestIdx];
+  const filledCount = testItems.filter((item) => results[item.id]?.trim()).length;
+  const progress = testItems.length > 0 ? (filledCount / testItems.length) * 100 : 0;
+
+  function handleResultNext() {
+    if (currentTestIdx < testItems.length - 1) setCurrentTestIdx(currentTestIdx + 1);
+  }
+  function handleResultPrev() {
+    if (currentTestIdx > 0) setCurrentTestIdx(currentTestIdx - 1);
+  }
+  function handleResultKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleResultNext();
+    }
+  }
+
+  const pendingCount = reports.filter((r) => r.status === "sample_collected").length;
+  const todayCount = reports.filter((r) => r.date === today).length;
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <Sidebar role="compounder" />
-      <Box sx={{ flexGrow: 1, p: 2.5, overflow: "auto" }} id="main-content" tabIndex={-1}>
-        {alert && <Alert severity={alert.type} sx={{ mb: 1.5, borderRadius: 2, py: 0.5 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
+      <Box sx={{ flexGrow: 1, p: { xs: 2, md: 3 }, overflow: "auto", pb: 12 }} id="main-content" tabIndex={-1}>
+        {alert && (
+          <Alert severity={alert.type} sx={{ mb: 2, borderRadius: 2, fontSize: 15, py: 1 }} onClose={() => setAlert(null)}>
+            {alert.msg}
+          </Alert>
+        )}
 
-        {/* Top bar */}
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <ButtonGroup size="small">
-              <Button onClick={() => setFilter("today")} variant={filter === "today" ? "contained" : "outlined"} startIcon={<TodayOutlined sx={{ fontSize: 14 }} />}>Today</Button>
-              <Button onClick={() => setFilter("pending")} variant={filter === "pending" ? "contained" : "outlined"} color="warning">Pending</Button>
-              <Button onClick={() => setFilter("all")} variant={filter === "all" ? "contained" : "outlined"}>All</Button>
-            </ButtonGroup>
-            <TextField
-              placeholder="Search name, phone, ID…"
-              size="small"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              sx={{ width: 220 }}
-              InputProps={{ startAdornment: <InputAdornment position="start"><SearchOutlined sx={{ fontSize: 16 }} /></InputAdornment> }}
-            />
+        {/* Header with stats */}
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>Reports</Typography>
+          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+            <Chip icon={<ScienceOutlined sx={{ fontSize: 16 }} />} label={`${todayCount} today`} size="small" variant="outlined" />
+            {pendingCount > 0 && <Chip label={`${pendingCount} pending`} size="small" color="warning" />}
           </Box>
-          <Button variant="contained" startIcon={<AddOutlined />} onClick={openCollect} sx={{ px: 3 }}>
-            + New Sample
-          </Button>
         </Box>
 
-        {/* Reports Table */}
-        <Card sx={{ borderRadius: 2 }}>
-          {loading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}><CircularProgress size={28} /></Box>
-          ) : (
-            <TableContainer sx={{ maxHeight: "calc(100vh - 160px)" }}>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow sx={{ "& th": { fontWeight: 700, fontSize: 11, color: "text.secondary", bgcolor: "#f8fafc", py: 1.2 } }}>
-                    <TableCell>#</TableCell>
-                    <TableCell>Patient</TableCell>
-                    <TableCell>Phone</TableCell>
-                    <TableCell>Ref. By</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Payment</TableCell>
-                    <TableCell align="right">₹</TableCell>
-                    <TableCell align="center">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filtered.map((r) => {
-                    const st = statusConfig[r.status] || { label: r.status, color: "default" as any };
-                    return (
-                      <TableRow key={r.id} hover sx={{ "& td": { fontSize: 12, py: 1 } }}>
-                        <TableCell sx={{ color: "text.secondary", fontWeight: 500 }}>{r.id}</TableCell>
-                        <TableCell>
-                          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 12 }}>{r.patient_name}</Typography>
-                          <Typography variant="caption" color="text.secondary">{r.patient_age}y {r.patient_gender ? `/ ${r.patient_gender}` : ""}</Typography>
-                        </TableCell>
-                        <TableCell>{r.patient_phone || "—"}</TableCell>
-                        <TableCell sx={{ fontSize: 11 }}>{r.referred_by || "—"}</TableCell>
-                        <TableCell><Chip label={st.label} size="small" color={st.color} sx={{ fontSize: 10, height: 20, fontWeight: 600 }} /></TableCell>
-                        <TableCell>
-                          {r.payment_status === "paid"
-                            ? <Chip label="✓ Paid" size="small" color="success" variant="outlined" sx={{ fontSize: 10, height: 20 }} />
-                            : <Chip label="Unpaid" size="small" color="error" variant="outlined" sx={{ fontSize: 10, height: 20, cursor: "pointer" }} onClick={() => markPaid(r.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") markPaid(r.id); }} tabIndex={0} aria-label={`Mark report ${r.id} as paid`} />
-                          }
-                        </TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600, color: "#00897b" }}>₹{r.total_price.toFixed(0)}</TableCell>
-                        <TableCell align="center">
-                          <Box sx={{ display: "flex", gap: 0.3, justifyContent: "center" }}>
-                            {(r.status === "sample_collected" || r.status === "results_entered" || (r.status === "finalized" && r.date === today)) && (
-                              <Tooltip title="Enter/Edit Results">
-                                <IconButton size="small" color="primary" onClick={() => openResults(r)} aria-label={`Enter results for report ${r.id}`}>
-                                  <EditOutlined sx={{ fontSize: 16 }} />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            {(r.status === "results_entered" || r.status === "finalized") && (
-                              <Tooltip title="View & Print">
-                                <IconButton size="small" onClick={() => router.push(`/compounder/reports/${r.id}`)} aria-label={`View and print report ${r.id}`}>
-                                  <PrintOutlined sx={{ fontSize: 16 }} />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {filtered.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} align="center" sx={{ py: 5, color: "text.secondary" }}>
-                        {loading ? "" : "No reports found"}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Card>
+        {/* Search bar - prominent */}
+        <TextField
+          placeholder="🔍 Search by name, phone number, or ID…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          fullWidth
+          sx={{ mb: 2.5, "& .MuiOutlinedInput-root": { fontSize: 16, py: 0.5 } }}
+          InputProps={{
+            startAdornment: <InputAdornment position="start"><SearchOutlined /></InputAdornment>,
+          }}
+        />
+
+        {/* Filter tabs - large touch targets */}
+        <Box sx={{ display: "flex", gap: 1, mb: 3 }}>
+          {([
+            { key: "pending", label: `Pending (${pendingCount})`, color: "#f59e0b" },
+            { key: "done", label: "Completed", color: "#10b981" },
+            { key: "all", label: "All", color: "#6b7280" },
+          ] as const).map((f) => (
+            <Button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              variant={filter === f.key ? "contained" : "outlined"}
+              sx={{
+                flex: 1,
+                py: 1.5,
+                fontSize: 14,
+                fontWeight: 600,
+                borderRadius: 2,
+                ...(filter === f.key ? { bgcolor: f.color, "&:hover": { bgcolor: f.color } } : {}),
+              }}
+            >
+              {f.label}
+            </Button>
+          ))}
+        </Box>
+
+        {/* Reports as cards (mobile-friendly) */}
+        {loading ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}><CircularProgress size={32} /></Box>
+        ) : filtered.length === 0 ? (
+          <Box sx={{ textAlign: "center", py: 6 }}>
+            <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>No reports found</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {filter === "pending" ? "All caught up! No pending results." : "Try a different search or filter."}
+            </Typography>
+          </Box>
+        ) : (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+            {filtered.map((r) => {
+              const isPending = r.status === "sample_collected";
+              const isDone = r.status === "finalized";
+              return (
+                <Card key={r.id} sx={{
+                  borderRadius: 2,
+                  borderLeft: `4px solid ${isPending ? "#f59e0b" : isDone ? "#10b981" : "#3b82f6"}`,
+                }}>
+                  <CardContent sx={{ py: 2, px: 2.5, "&:last-child": { pb: 2 } }}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+                      <Box>
+                        <Typography sx={{ fontWeight: 700, fontSize: 16 }}>{r.patient_name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {r.patient_age}y {r.patient_gender ? `/ ${r.patient_gender}` : ""} {r.patient_phone ? `• ${r.patient_phone}` : ""}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: "right" }}>
+                        <Typography sx={{ fontWeight: 700, color: "#00897b", fontSize: 16 }}>₹{r.total_price.toFixed(0)}</Typography>
+                        <Typography variant="caption" color="text.secondary">#{r.id}</Typography>
+                      </Box>
+                    </Box>
+
+                    {/* Action buttons - large touch targets */}
+                    <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
+                      {isPending && (
+                        <Button
+                          variant="contained"
+                          fullWidth
+                          onClick={() => openResults(r)}
+                          sx={{ py: 1.2, fontSize: 14, fontWeight: 600 }}
+                          startIcon={<EditOutlined />}
+                        >
+                          Enter Results
+                        </Button>
+                      )}
+                      {r.status === "results_entered" && (
+                        <>
+                          <Button
+                            variant="outlined"
+                            onClick={() => openResults(r)}
+                            sx={{ py: 1.2, fontSize: 13, flex: 1 }}
+                            startIcon={<EditOutlined />}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="contained"
+                            onClick={() => router.push(`/compounder/reports/${r.id}`)}
+                            sx={{ py: 1.2, fontSize: 13, flex: 1 }}
+                            startIcon={<PrintOutlined />}
+                          >
+                            Print
+                          </Button>
+                        </>
+                      )}
+                      {isDone && (
+                        <Button
+                          variant="outlined"
+                          fullWidth
+                          onClick={() => router.push(`/compounder/reports/${r.id}`)}
+                          sx={{ py: 1.2, fontSize: 14 }}
+                          startIcon={<PrintOutlined />}
+                        >
+                          View / Print
+                        </Button>
+                      )}
+                      {r.payment_status !== "paid" && (
+                        <Button
+                          variant="outlined"
+                          color="warning"
+                          onClick={() => markPaid(r.id)}
+                          sx={{ py: 1.2, minWidth: 44 }}
+                        >
+                          <PaymentOutlined />
+                        </Button>
+                      )}
+                    </Box>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Box>
+        )}
+
+        {/* Floating Action Button - New Sample */}
+        <Fab
+          color="primary"
+          onClick={() => openCollect()}
+          sx={{
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+            width: 64,
+            height: 64,
+            boxShadow: "0 4px 20px rgba(15,76,129,0.4)",
+            zIndex: 1200,
+          }}
+          aria-label="New Sample"
+        >
+          <AddOutlined sx={{ fontSize: 32 }} />
+        </Fab>
 
         {/* COLLECT SAMPLE DIALOG */}
-        <Dialog open={modal === "collect"} onClose={closeModal} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-          <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1 }}>
+        <Dialog open={modal === "collect"} onClose={closeModal} maxWidth="sm" fullWidth fullScreen PaperProps={{ sx: { borderRadius: { xs: 0, sm: 3 } } }}>
+          <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1, pt: 2 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <PersonOutlined sx={{ color: "primary.main" }} />
-              <Typography variant="h6">New Sample Collection</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>New Sample</Typography>
             </Box>
-            <IconButton size="small" onClick={closeModal}><CloseOutlined /></IconButton>
+            <IconButton onClick={closeModal} size="large"><CloseOutlined /></IconButton>
           </DialogTitle>
-          <DialogContent dividers>
-            <Grid container spacing={2.5}>
-              {/* Patient fields */}
-              <Grid item xs={12} sm={6}>
-                <TextField label="Patient Name *" value={patientName} onChange={(e) => setPatientName(e.target.value)} fullWidth autoFocus />
+          <DialogContent sx={{ px: 3 }}>
+            {/* Recent patients */}
+            {recentPatients.length > 0 && !patientName && (
+              <Box sx={{ mb: 3 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                  <HistoryOutlined sx={{ fontSize: 16, color: "text.secondary" }} />
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary", textTransform: "uppercase" }}>Recent Patients</Typography>
+                </Box>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                  {recentPatients.map((p, i) => (
+                    <Chip
+                      key={i}
+                      label={`${p.patient_name} ${p.patient_phone ? `• ${p.patient_phone}` : ""}`}
+                      onClick={() => openCollect(p)}
+                      sx={{ fontSize: 13, py: 2.5, cursor: "pointer" }}
+                      avatar={<Avatar sx={{ width: 28, height: 28, fontSize: 12 }}>{p.patient_name[0]}</Avatar>}
+                    />
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <TextField
+                  label="Patient Name"
+                  value={patientName}
+                  onChange={(e) => setPatientName(e.target.value)}
+                  fullWidth
+                  required
+                  autoFocus
+                  sx={{ "& .MuiOutlinedInput-root": { fontSize: 16 } }}
+                />
               </Grid>
-              <Grid item xs={4} sm={2}>
-                <TextField label="Age" type="number" value={age} onChange={(e) => setAge(e.target.value)} fullWidth inputProps={{ min: 0 }} />
+              <Grid item xs={4}>
+                <TextField label="Age" type="number" value={age} onChange={(e) => setAge(e.target.value)} fullWidth inputProps={{ min: 0, inputMode: "numeric" }} />
               </Grid>
-              <Grid item xs={4} sm={2}>
-                <FormControl fullWidth size="small">
+              <Grid item xs={4}>
+                <FormControl fullWidth>
                   <InputLabel>Gender</InputLabel>
                   <Select value={gender} onChange={(e) => setGender(e.target.value)} label="Gender">
                     <MenuItem value="">—</MenuItem>
-                    <MenuItem value="M">M</MenuItem>
-                    <MenuItem value="F">F</MenuItem>
+                    <MenuItem value="M">Male</MenuItem>
+                    <MenuItem value="F">Female</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={4} sm={2}>
-                <FormControlLabel
-                  control={<Switch checked={isPaid} onChange={(e) => setIsPaid(e.target.checked)} color="success" size="small" />}
-                  label={<Typography variant="caption">{isPaid ? "Paid" : "Unpaid"}</Typography>}
+              <Grid item xs={4}>
+                <Box sx={{ display: "flex", alignItems: "center", height: "100%", justifyContent: "center" }}>
+                  <FormControlLabel
+                    control={<Switch checked={isPaid} onChange={(e) => setIsPaid(e.target.checked)} color="success" />}
+                    label={<Typography sx={{ fontSize: 14, fontWeight: 600 }}>{isPaid ? "Paid ✓" : "Unpaid"}</Typography>}
+                  />
+                </Box>
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  label="Phone Number"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  fullWidth
+                  inputProps={{ inputMode: "tel" }}
+                  InputProps={{ startAdornment: <InputAdornment position="start"><PhoneOutlined sx={{ fontSize: 18 }} /></InputAdornment> }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth />
-              </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12}>
                 <TextField label="Referred By" value={referredBy} onChange={(e) => setReferredBy(e.target.value)} fullWidth />
               </Grid>
 
-              {/* Tests */}
+              {/* Tests selection */}
               <Grid item xs={12}>
-                <Divider sx={{ my: 0.5 }} />
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, mt: 1 }}>
-                  <ScienceOutlined sx={{ fontSize: 18, color: "primary.main" }} />
-                  <Typography variant="subtitle2">Select Tests</Typography>
-                  {selectedTestIds.length > 0 && <Chip label={`${selectedTestIds.length} • ₹${totalPrice}`} size="small" color="primary" sx={{ ml: "auto", fontWeight: 600 }} />}
+                <Divider sx={{ my: 1 }} />
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2, mt: 1 }}>
+                  <ScienceOutlined sx={{ color: "primary.main" }} />
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Select Tests</Typography>
+                  {selectedTestIds.length > 0 && (
+                    <Chip label={`${selectedTestIds.length} selected • ₹${totalPrice}`} color="primary" sx={{ ml: "auto", fontWeight: 700, fontSize: 13 }} />
+                  )}
                 </Box>
                 {Object.entries(testsByCategory).map(([cat, tests]) => (
-                  <Box key={cat} sx={{ mb: 1.5 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", fontSize: 10, textTransform: "uppercase" }}>{cat}</Typography>
-                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.3 }}>
+                  <Box key={cat} sx={{ mb: 2 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", fontSize: 11 }}>{cat}</Typography>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mt: 0.5 }}>
                       {tests.map((t) => (
                         <Chip
                           key={t.id}
-                          label={`${t.name} ₹${t.price}`}
-                          size="small"
+                          label={`${t.name} • ₹${t.price}`}
                           onClick={() => setSelectedTestIds((p) => p.includes(t.id) ? p.filter((x) => x !== t.id) : [...p, t.id])}
                           color={selectedTestIds.includes(t.id) ? "primary" : "default"}
                           variant={selectedTestIds.includes(t.id) ? "filled" : "outlined"}
-                          sx={{ cursor: "pointer", fontSize: 11 }}
+                          sx={{ cursor: "pointer", fontSize: 13, py: 2.5, fontWeight: selectedTestIds.includes(t.id) ? 600 : 400 }}
                         />
                       ))}
                     </Box>
@@ -358,82 +483,116 @@ export default function CompounderReportsPage() {
               </Grid>
             </Grid>
           </DialogContent>
-          <DialogActions sx={{ px: 3, py: 2 }}>
-            <Button onClick={closeModal} variant="outlined">Cancel</Button>
-            <Button onClick={handleCollect} variant="contained" disabled={saving} startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <CheckCircleOutlined />}>
+          <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid #e2e8f0" }}>
+            <Button onClick={closeModal} variant="outlined" size="large" sx={{ px: 3 }}>Cancel</Button>
+            <Button onClick={handleCollect} variant="contained" size="large" disabled={saving} sx={{ px: 4, py: 1.5, fontSize: 15 }}
+              startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <CheckCircleOutlined />}>
               {saving ? "Saving…" : "Register Sample"}
             </Button>
           </DialogActions>
         </Dialog>
 
-        {/* ENTER RESULTS DIALOG */}
-        <Dialog open={modal === "results"} onClose={closeModal} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-          <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1 }}>
-            <Box>
-              <Typography variant="h6">Enter Results — #{activeReport?.id}</Typography>
-              <Typography variant="caption" color="text.secondary">
-                {activeReport?.patient_name} • {activeReport?.patient_age}y
-              </Typography>
+        {/* ENTER RESULTS - WIZARD STYLE */}
+        <Dialog open={modal === "results"} onClose={closeModal} maxWidth="sm" fullWidth fullScreen PaperProps={{ sx: { borderRadius: { xs: 0, sm: 3 } } }}>
+          <DialogTitle sx={{ pb: 1, pt: 2 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>Enter Results</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {activeReport?.patient_name} • #{activeReport?.id}
+                </Typography>
+              </Box>
+              <IconButton onClick={closeModal} size="large"><CloseOutlined /></IconButton>
             </Box>
-            <IconButton size="small" onClick={closeModal}><CloseOutlined /></IconButton>
+            {/* Progress bar */}
+            <Box sx={{ mt: 1.5 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                <Typography variant="caption" color="text.secondary">{filledCount} of {testItems.length} filled</Typography>
+                <Typography variant="caption" color="text.secondary">{Math.round(progress)}%</Typography>
+              </Box>
+              <LinearProgress variant="determinate" value={progress} sx={{ height: 6, borderRadius: 3 }} />
+            </Box>
           </DialogTitle>
-          <DialogContent dividers sx={{ p: 0 }}>
-            <TableContainer sx={{ maxHeight: 450 }}>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow sx={{ "& th": { fontWeight: 700, fontSize: 11, bgcolor: "#f8fafc" } }}>
-                    <TableCell>Test</TableCell>
-                    <TableCell>Unit</TableCell>
-                    <TableCell>Range</TableCell>
-                    <TableCell>Result</TableCell>
-                    <TableCell align="center">Status</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {activeReport?.reportItems?.map((item) => {
-                    const val = results[item.id] || "";
-                    const numVal = parseFloat(val);
-                    let status: "normal" | "high" | "low" | "none" = "none";
-                    if (val && item.normal_min != null && item.normal_max != null && !isNaN(numVal)) {
-                      if (numVal < item.normal_min) status = "low";
-                      else if (numVal > item.normal_max) status = "high";
-                      else status = "normal";
-                    }
-                    return (
-                      <TableRow key={item.id} sx={{ bgcolor: status === "high" || status === "low" ? "#fef2f2" : "transparent" }}>
-                        <TableCell sx={{ fontWeight: 500, fontSize: 12 }}>{item.test_name}</TableCell>
-                        <TableCell sx={{ fontSize: 11, color: "text.secondary" }}>{item.unit || "—"}</TableCell>
-                        <TableCell sx={{ fontSize: 11, color: "text.secondary" }}>
-                          {item.normal_min != null && item.normal_max != null ? `${item.normal_min}–${item.normal_max}` : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <TextField
-                            size="small"
-                            value={val}
-                            onChange={(e) => setResults((p) => ({ ...p, [item.id]: e.target.value }))}
-                            placeholder="Value"
-                            sx={{ width: 110, "& input": { fontSize: 13, py: 0.8 } }}
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          {status === "normal" && <Chip label="✓" size="small" color="success" sx={{ fontSize: 10, height: 18, width: 28 }} />}
-                          {status === "high" && <Chip label="H" size="small" color="error" sx={{ fontSize: 10, height: 18, width: 28, fontWeight: 700 }} />}
-                          {status === "low" && <Chip label="L" size="small" color="warning" sx={{ fontSize: 10, height: 18, width: 28, fontWeight: 700 }} />}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+
+          <DialogContent sx={{ display: "flex", flexDirection: "column", justifyContent: "center", px: 3 }}>
+            {currentItem && (
+              <Box sx={{ textAlign: "center", py: 4 }}>
+                {/* Test counter */}
+                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 13 }}>
+                  Test {currentTestIdx + 1} of {testItems.length}
+                </Typography>
+
+                {/* Test name - large */}
+                <Typography variant="h5" sx={{ fontWeight: 700, mt: 1, mb: 0.5 }}>
+                  {currentItem.test_name}
+                </Typography>
+
+                {/* Reference range */}
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
+                  {currentItem.normal_min != null && currentItem.normal_max != null
+                    ? `Normal: ${currentItem.normal_min} – ${currentItem.normal_max} ${currentItem.unit || ""}`
+                    : currentItem.unit ? `Unit: ${currentItem.unit}` : ""}
+                </Typography>
+
+                {/* Large input */}
+                <TextField
+                  inputRef={resultInputRef}
+                  value={results[currentItem.id] || ""}
+                  onChange={(e) => setResults((p) => ({ ...p, [currentItem.id]: e.target.value }))}
+                  onKeyDown={handleResultKeyDown}
+                  placeholder="Enter value"
+                  inputProps={{ inputMode: "decimal", style: { fontSize: 32, textAlign: "center", fontWeight: 700 } }}
+                  sx={{ width: "100%", maxWidth: 280, mx: "auto", "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+                />
+
+                {/* Status indicator */}
+                {(() => {
+                  const val = results[currentItem.id] || "";
+                  const numVal = parseFloat(val);
+                  if (val && currentItem.normal_min != null && currentItem.normal_max != null && !isNaN(numVal)) {
+                    if (numVal < currentItem.normal_min) return <Chip label="↓ LOW" color="warning" sx={{ mt: 2, fontSize: 14, py: 2, fontWeight: 700 }} />;
+                    if (numVal > currentItem.normal_max) return <Chip label="↑ HIGH" color="error" sx={{ mt: 2, fontSize: 14, py: 2, fontWeight: 700 }} />;
+                    return <Chip label="✓ Normal" color="success" sx={{ mt: 2, fontSize: 14, py: 2, fontWeight: 700 }} />;
+                  }
+                  return null;
+                })()}
+              </Box>
+            )}
           </DialogContent>
-          <DialogActions sx={{ px: 3, py: 2, justifyContent: "space-between" }}>
-            <Button onClick={() => handleSaveResults(false)} variant="outlined" disabled={saving}>Save Draft</Button>
-            <Button onClick={() => handleSaveResults(true)} variant="contained" disabled={saving}
-              startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <CheckCircleOutlined />}>
-              Finalize & Print
-            </Button>
-          </DialogActions>
+
+          {/* Navigation buttons */}
+          <Box sx={{ px: 3, pb: 2 }}>
+            <Box sx={{ display: "flex", gap: 1.5, mb: 2 }}>
+              <Button
+                variant="outlined"
+                onClick={handleResultPrev}
+                disabled={currentTestIdx === 0}
+                sx={{ flex: 1, py: 1.5, fontSize: 15 }}
+                startIcon={<NavigateBeforeOutlined />}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleResultNext}
+                disabled={currentTestIdx >= testItems.length - 1}
+                sx={{ flex: 1, py: 1.5, fontSize: 15 }}
+                endIcon={<NavigateNextOutlined />}
+              >
+                Next
+              </Button>
+            </Box>
+            <Divider sx={{ mb: 2 }} />
+            <Box sx={{ display: "flex", gap: 1.5 }}>
+              <Button onClick={() => handleSaveResults(false)} variant="outlined" fullWidth disabled={saving} sx={{ py: 1.3, fontSize: 14 }}>
+                Save Draft
+              </Button>
+              <Button onClick={() => handleSaveResults(true)} variant="contained" fullWidth disabled={saving} color="success" sx={{ py: 1.3, fontSize: 14 }}
+                startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <CheckCircleOutlined />}>
+                {saving ? "Saving…" : "Finalize & Print"}
+              </Button>
+            </Box>
+          </Box>
         </Dialog>
       </Box>
     </Box>
