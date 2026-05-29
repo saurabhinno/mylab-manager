@@ -125,7 +125,7 @@ export default function ProfilePage() {
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <Sidebar role="doctor" email={email} />
-      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }}>
+      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h5">Profile</Typography>
           <Typography variant="body2" color="text.secondary">Update your name and signature for reports</Typography>

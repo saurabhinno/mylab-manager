@@ -56,7 +56,7 @@ export default function DoctorDashboardPage() {
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <Sidebar role="doctor" email="doctor@mylab.com" />
-      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }}>
+      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h5">Dashboard</Typography>
           <Typography variant="body2" color="text.secondary">

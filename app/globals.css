@@ -13,15 +13,69 @@ html, body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
 
+/* Keyboard focus styles */
+*:focus-visible {
+  outline: 2px solid #1565c0;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Skip to content link */
+.skip-to-content {
+  position: absolute;
+  top: -100px;
+  left: 16px;
+  z-index: 9999;
+  padding: 8px 16px;
+  background: #0f4c81;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.2s;
+}
+.skip-to-content:focus {
+  top: 16px;
+}
+
 @media (max-width: 899px) {
   body { padding-top: 56px; }
 }
 
 @media print {
-  body { background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
   @page { margin: 0; size: A4 portrait; }
-  * { overflow: visible !important; }
+
+  /* Hide everything that's not the report */
+  .skip-to-content,
+  .MuiDrawer-root { display: none !important; }
+
+  /* Reset all containers to not constrain the report */
+  body, body > *, body > * > *, body > * > * > * {
+    display: block !important;
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+  }
+
+  /* The report page itself */
   #report-page {
+    display: flex !important;
+    flex-direction: column !important;
     width: 100% !important;
     height: 100vh !important;
     min-height: 100vh !important;
@@ -29,6 +83,7 @@ html, body {
     box-shadow: none !important;
     border-radius: 0 !important;
     margin: 0 !important;
+    overflow: hidden !important;
     page-break-after: avoid;
     page-break-inside: avoid;
   }

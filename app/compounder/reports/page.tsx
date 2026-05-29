@@ -190,7 +190,7 @@ export default function CompounderReportsPage() {
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <Sidebar role="compounder" />
-      <Box sx={{ flexGrow: 1, p: 2.5, overflow: "auto" }}>
+      <Box sx={{ flexGrow: 1, p: 2.5, overflow: "auto" }} id="main-content" tabIndex={-1}>
         {alert && <Alert severity={alert.type} sx={{ mb: 1.5, borderRadius: 2, py: 0.5 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
 
         {/* Top bar */}
@@ -250,7 +250,7 @@ export default function CompounderReportsPage() {
                         <TableCell>
                           {r.payment_status === "paid"
                             ? <Chip label="✓ Paid" size="small" color="success" variant="outlined" sx={{ fontSize: 10, height: 20 }} />
-                            : <Chip label="Unpaid" size="small" color="error" variant="outlined" sx={{ fontSize: 10, height: 20, cursor: "pointer" }} onClick={() => markPaid(r.id)} />
+                            : <Chip label="Unpaid" size="small" color="error" variant="outlined" sx={{ fontSize: 10, height: 20, cursor: "pointer" }} onClick={() => markPaid(r.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") markPaid(r.id); }} tabIndex={0} aria-label={`Mark report ${r.id} as paid`} />
                           }
                         </TableCell>
                         <TableCell align="right" sx={{ fontWeight: 600, color: "#00897b" }}>₹{r.total_price.toFixed(0)}</TableCell>
@@ -258,14 +258,14 @@ export default function CompounderReportsPage() {
                           <Box sx={{ display: "flex", gap: 0.3, justifyContent: "center" }}>
                             {(r.status === "sample_collected" || r.status === "results_entered" || (r.status === "finalized" && r.date === today)) && (
                               <Tooltip title="Enter/Edit Results">
-                                <IconButton size="small" color="primary" onClick={() => openResults(r)}>
+                                <IconButton size="small" color="primary" onClick={() => openResults(r)} aria-label={`Enter results for report ${r.id}`}>
                                   <EditOutlined sx={{ fontSize: 16 }} />
                                 </IconButton>
                               </Tooltip>
                             )}
                             {(r.status === "results_entered" || r.status === "finalized") && (
                               <Tooltip title="View & Print">
-                                <IconButton size="small" onClick={() => router.push(`/compounder/reports/${r.id}`)}>
+                                <IconButton size="small" onClick={() => router.push(`/compounder/reports/${r.id}`)} aria-label={`View and print report ${r.id}`}>
                                   <PrintOutlined sx={{ fontSize: 16 }} />
                                 </IconButton>
                               </Tooltip>

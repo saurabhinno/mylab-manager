@@ -63,7 +63,7 @@ export default function DoctorReportsPage() {
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <Sidebar role="doctor" email="doctor@mylab.com" />
-      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }}>
+      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h5">All Reports</Typography>
           <Typography variant="body2" color="text.secondary">{reports.length} total reports</Typography>
@@ -216,7 +216,7 @@ export default function DoctorReportsPage() {
                         />
                       </TableCell>
                       <TableCell align="center">
-                        <Button size="small" variant="text" href={`/doctor/reports/${r.id}`} sx={{ fontSize: 11, minWidth: 0 }}>
+                        <Button size="small" variant="text" href={`/doctor/reports/${r.id}`} sx={{ fontSize: 11, minWidth: 0 }} aria-label={`View report ${r.id}`}>
                           View
                         </Button>
                       </TableCell>

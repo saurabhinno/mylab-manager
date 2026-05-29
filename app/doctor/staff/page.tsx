@@ -5,10 +5,12 @@ import {
   Box, Typography, Card, CardContent, TextField, Button,
   Alert, InputAdornment, IconButton, Grid, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Chip, Tooltip,
+  Dialog, DialogTitle, DialogContent, DialogActions,
 } from "@mui/material";
 import {
   PersonAddOutlined, EmailOutlined, LockOutlined,
   VisibilityOutlined, VisibilityOffOutlined, DeleteOutlined,
+  LockResetOutlined, CloseOutlined,
 } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
@@ -27,6 +29,11 @@ export default function StaffPage() {
   const [showPw, setShowPw] = useState(false);
   const [alert, setAlert] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [users, setUsers] = useState<StaffUser[]>([]);
+
+  // Reset password state
+  const [resetUserId, setResetUserId] = useState<number | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [showResetPw, setShowResetPw] = useState(false);
 
   const loadUsers = () =>
     apiRequest("/api/auth/users").then((r) => r.json()).then((d) => setUsers(Array.isArray(d) ? d : []));
@@ -63,10 +70,28 @@ export default function StaffPage() {
     setTimeout(() => setAlert(null), 4000);
   }
 
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resetUserId || !resetPassword) return;
+    const res = await apiRequest(`/api/auth/users/${resetUserId}/password`, {
+      method: "PUT",
+      body: JSON.stringify({ password: resetPassword }),
+    });
+    if (res.ok) {
+      setAlert({ type: "success", msg: "Password reset successfully." });
+      setResetUserId(null);
+      setResetPassword("");
+    } else {
+      const d = await res.json();
+      setAlert({ type: "error", msg: d.error || "Failed to reset password." });
+    }
+    setTimeout(() => setAlert(null), 4000);
+  }
+
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <Sidebar role="doctor" email="doctor@mylab.com" />
-      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }}>
+      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h5">Staff Management</Typography>
           <Typography variant="body2" color="text.secondary">Manage lab staff accounts</Typography>
@@ -150,11 +175,18 @@ export default function StaffPage() {
                         <TableCell>{new Date(u.createdAt).toLocaleDateString("en-IN")}</TableCell>
                         <TableCell align="center">
                           {u.role !== "doctor" && (
-                            <Tooltip title="Delete">
-                              <IconButton size="small" color="error" onClick={() => handleDelete(u.id, u.email)}>
-                                <DeleteOutlined sx={{ fontSize: 16 }} />
-                              </IconButton>
-                            </Tooltip>
+                            <Box sx={{ display: "flex", gap: 0.5, justifyContent: "center" }}>
+                              <Tooltip title="Reset Password">
+                                <IconButton size="small" color="primary" onClick={() => { setResetUserId(u.id); setResetPassword(""); }}>
+                                  <LockResetOutlined sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete">
+                                <IconButton size="small" color="error" onClick={() => handleDelete(u.id, u.email)}>
+                                  <DeleteOutlined sx={{ fontSize: 16 }} />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
                           )}
                         </TableCell>
                       </TableRow>
@@ -172,6 +204,50 @@ export default function StaffPage() {
             </Card>
           </Grid>
         </Grid>
+
+        {/* Reset Password Dialog */}
+        <Dialog open={resetUserId !== null} onClose={() => setResetUserId(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+          <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <LockResetOutlined sx={{ color: "primary.main" }} />
+              <Typography variant="h6">Reset Password</Typography>
+            </Box>
+            <IconButton size="small" onClick={() => setResetUserId(null)}><CloseOutlined /></IconButton>
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Set a new password for {users.find((u) => u.id === resetUserId)?.email}
+            </Typography>
+            <Box component="form" id="reset-pw-form" onSubmit={handleResetPassword}>
+              <TextField
+                label="New Password"
+                type={showResetPw ? "text" : "password"}
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                required
+                fullWidth
+                autoFocus
+                inputProps={{ minLength: 4 }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start"><LockOutlined sx={{ fontSize: 18, color: "text.secondary" }} /></InputAdornment>,
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setShowResetPw(!showResetPw)}>
+                        {showResetPw ? <VisibilityOffOutlined sx={{ fontSize: 18 }} /> : <VisibilityOutlined sx={{ fontSize: 18 }} />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setResetUserId(null)} variant="outlined">Cancel</Button>
+            <Button type="submit" form="reset-pw-form" variant="contained" disabled={!resetPassword}>
+              Reset Password
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Box>
   );

@@ -142,7 +142,7 @@ export default function DoctorTestsPage() {
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <Sidebar role="doctor" email="doctor@mylab.com" />
-      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }}>
+      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         {alert && <Alert severity={alert.type} sx={{ mb: 2, borderRadius: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
 
         {/* LIST VIEW */}
@@ -215,7 +215,7 @@ export default function DoctorTestsPage() {
                         <TableCell align="right" sx={{ fontWeight: 600, color: "#00897b" }}>₹{t.price.toFixed(0)}</TableCell>
                         <TableCell align="center">
                           <Tooltip title="Edit">
-                            <IconButton size="small" onClick={() => openEdit(t)}>
+                            <IconButton size="small" onClick={() => openEdit(t)} aria-label={`Edit test ${t.name}`}>
                               <EditOutlined sx={{ fontSize: 16 }} />
                             </IconButton>
                           </Tooltip>

@@ -83,6 +83,7 @@ export default function Sidebar({ role, email }: SidebarProps) {
                   color: active ? '#fff' : 'rgba(255,255,255,0.65)',
                   background: active ? 'rgba(255,255,255,0.15)' : 'transparent',
                   '&:hover': { background: 'rgba(255,255,255,0.1)', color: '#fff' },
+                  '&:focus-visible': { outline: '2px solid #fff', outlineOffset: 2, background: 'rgba(255,255,255,0.1)', color: '#fff' },
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}>{item.icon}</ListItemIcon>
@@ -109,7 +110,14 @@ export default function Sidebar({ role, email }: SidebarProps) {
           </Typography>
         </Box>
         <Tooltip title="Logout">
-          <LogoutOutlined onClick={handleLogout} sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, cursor: 'pointer', '&:hover': { color: '#fff' } }} />
+          <IconButton
+            onClick={handleLogout}
+            aria-label="Logout"
+            size="small"
+            sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#fff' }, '&:focus-visible': { outline: '2px solid #fff', outlineOffset: 2 } }}
+          >
+            <LogoutOutlined sx={{ fontSize: 18 }} />
+          </IconButton>
         </Tooltip>
       </Box>
     </>

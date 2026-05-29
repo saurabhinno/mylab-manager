@@ -20,11 +20,31 @@ const theme = createTheme({
   components: {
     MuiButton: {
       styleOverrides: {
-        root: { textTransform: 'none', fontWeight: 600, borderRadius: 8 },
+        root: {
+          textTransform: 'none',
+          fontWeight: 600,
+          borderRadius: 8,
+          '&:focus-visible': { outline: '2px solid #0f4c81', outlineOffset: 2 },
+        },
         containedPrimary: {
           background: 'linear-gradient(135deg, #0f4c81 0%, #1565c0 100%)',
           '&:hover': { background: 'linear-gradient(135deg, #0d3d6b 0%, #0f4c81 100%)' },
         },
+      },
+    },
+    MuiIconButton: {
+      styleOverrides: {
+        root: { '&:focus-visible': { outline: '2px solid #0f4c81', outlineOffset: 2 } },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: { borderRadius: 6, '&:focus-visible': { outline: '2px solid #0f4c81', outlineOffset: 2 } },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: { '&:focus-visible': { outline: '2px solid #0f4c81', outlineOffset: -2 } },
       },
     },
     MuiTextField: {
@@ -37,8 +57,10 @@ const theme = createTheme({
     MuiPaper: {
       styleOverrides: { root: { borderRadius: 12 } },
     },
-    MuiChip: {
-      styleOverrides: { root: { borderRadius: 6 } },
+    MuiTableRow: {
+      styleOverrides: {
+        root: { '&:focus-within': { backgroundColor: 'rgba(15, 76, 129, 0.04)' } },
+      },
     },
   },
 });

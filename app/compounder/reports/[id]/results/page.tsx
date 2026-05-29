@@ -124,7 +124,7 @@ export default function EnterResultsPage() {
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <Sidebar role="compounder" />
-      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }}>
+      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
           <Button variant="outlined" size="small" startIcon={<ArrowBackOutlined />} onClick={() => router.push("/compounder/reports")}>
             Back

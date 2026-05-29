@@ -143,6 +143,27 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
   }
 });
 
+// Reset password (admin resets staff password)
+router.put("/users/:id/password", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    if (!password || password.length < 4) {
+      return res.status(400).json({ error: "Password must be at least 4 characters." });
+    }
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+    user.password_hash = await hashPassword(password);
+    await user.save();
+    return res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Delete user (staff)
 router.delete("/users/:id", async (req: Request, res: Response) => {
   try {

@@ -96,9 +96,9 @@ export default function DoctorReportViewPage() {
   const lab = report.labSettings;
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default", "@media print": { display: "block", minHeight: 0, bgcolor: "#fff", p: 0 } }}>
       <Box sx={{ "@media print": { display: "none" } }}><Sidebar role="doctor" email="doctor@mylab.com" /></Box>
-      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center", "@media print": { p: 0, overflow: "hidden", display: "block" } }} id="main-content" tabIndex={-1}>
         {/* Action bar */}
         <Box sx={{ width: 794, mb: 2, display: "flex", gap: 2, "@media print": { display: "none" } }}>
           <Button variant="outlined" size="small" startIcon={<ArrowBackOutlined />} component={Link} href="/doctor/reports">Back</Button>

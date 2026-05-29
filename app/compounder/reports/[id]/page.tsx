@@ -88,7 +88,7 @@ export default function ReportViewPage() {
   const lab = report.labSettings;
 
   return (
-    <Box sx={{ bgcolor: "#e2e8f0", minHeight: "100vh", py: 3, px: 2 }}>
+    <Box sx={{ bgcolor: "#e2e8f0", minHeight: "100vh", py: 3, px: 2, "@media print": { bgcolor: "#fff", p: 0, m: 0, minHeight: 0 } }}>
       {/* Action bar — hidden on print */}
       <Box sx={{ maxWidth: 794, mx: "auto", mb: 2, display: "flex", gap: 2, "@media print": { display: "none" } }}>
         <Button variant="outlined" size="small" startIcon={<ArrowBackOutlined />} component={Link} href="/compounder/reports">Back</Button>
