@@ -54,41 +54,31 @@ html, body {
     margin: 0 !important;
   }
 
-  /* Hide everything */
-  body * {
-    visibility: hidden;
-    position: static;
-    overflow: visible;
-  }
-
-  /* Show only the report and its children */
-  #report-page,
-  #report-page * {
-    visibility: visible !important;
-  }
-
-  #report-page {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    min-height: 100% !important;
-    max-height: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    overflow: hidden !important;
-    display: flex !important;
-    flex-direction: column !important;
-    z-index: 99999;
-  }
-
-  /* Ensure nothing else creates pages */
+  /* Hide everything except report pages */
+  body > *:not(#__next),
   .skip-to-content,
   .MuiDrawer-root,
   .MuiDrawer-paper {
     display: none !important;
+  }
+
+  /* Show report pages */
+  .report-page {
+    visibility: visible !important;
+    position: relative !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    page-break-after: always !important;
+  }
+
+  .report-page:last-child {
+    page-break-after: auto !important;
   }
 }
