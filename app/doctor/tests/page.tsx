@@ -1,17 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box, Typography, Card, CardContent, Grid, TextField, Button,
   Alert, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, Chip, InputAdornment, FormControl, InputLabel, Select,
-  MenuItem, Tabs, Tab, Divider, IconButton, Tooltip, Autocomplete,
+  MenuItem, Tabs, Tab, Divider, IconButton, Tooltip, Switch,
+  FormControlLabel, Collapse,
 } from "@mui/material";
 import {
   AddOutlined, SearchOutlined, ScienceOutlined, ArrowBackOutlined, EditOutlined,
+  DeleteOutlined, ExpandMoreOutlined, ExpandLessOutlined, AddCircleOutlined,
+  RemoveCircleOutlined,
 } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
+
+interface TestParam {
+  id?: number;
+  name: string;
+  unit: string | null;
+  default_min: number | null;
+  default_max: number | null;
+  method: string | null;
+  display_order: number;
+}
 
 interface TestDefinition {
   id: number;
@@ -24,6 +38,8 @@ interface TestDefinition {
   unit: string | null;
   price: number;
   report_time: string | null;
+  is_panel: boolean;
+  parameters?: TestParam[];
 }
 
 const DEFAULT_CATEGORIES = ["Hematology", "Biochemistry", "Thyroid", "Urine", "Serology", "Vitamins", "Microbiology", "Hormones", "General"];
@@ -33,12 +49,14 @@ const REPORT_TIMES = ["30 Minutes", "1 Hour", "2 Hours", "Same Day", "Next Day",
 type ViewMode = "list" | "add" | "edit";
 
 export default function DoctorTestsPage() {
+  const { t } = useI18n();
   const [tests, setTests] = useState<TestDefinition[]>([]);
   const [search, setSearch] = useState("");
   const [categoryTab, setCategoryTab] = useState("All");
   const [alert, setAlert] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [view, setView] = useState<ViewMode>("list");
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [expandedPanels, setExpandedPanels] = useState<Set<number>>(new Set());
 
   // Form state
   const [name, setName] = useState("");
@@ -50,6 +68,8 @@ export default function DoctorTestsPage() {
   const [max, setMax] = useState("");
   const [unit, setUnit] = useState("");
   const [reportTime, setReportTime] = useState("");
+  const [isPanel, setIsPanel] = useState(false);
+  const [parameters, setParameters] = useState<TestParam[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const loadTests = () =>
@@ -60,7 +80,7 @@ export default function DoctorTestsPage() {
   function resetForm() {
     setName(""); setCategory(""); setSampleType(""); setMethod("");
     setPrice(""); setMin(""); setMax(""); setUnit(""); setReportTime("");
-    setErrors({}); setEditingId(null);
+    setIsPanel(false); setParameters([]); setErrors({}); setEditingId(null);
   }
 
   function openAdd() {
@@ -78,6 +98,15 @@ export default function DoctorTestsPage() {
     setMax(test.default_max != null ? String(test.default_max) : "");
     setUnit(test.unit || "");
     setReportTime(test.report_time || "");
+    setIsPanel(test.is_panel);
+    setParameters(test.parameters?.map((p) => ({
+      name: p.name,
+      unit: p.unit,
+      default_min: p.default_min,
+      default_max: p.default_max,
+      method: p.method,
+      display_order: p.display_order,
+    })) || []);
     setEditingId(test.id);
     setErrors({});
     setView("edit");
@@ -88,303 +117,329 @@ export default function DoctorTestsPage() {
     resetForm();
   }
 
+  function addParameter() {
+    setParameters([...parameters, { name: "", unit: null, default_min: null, default_max: null, method: null, display_order: parameters.length + 1 }]);
+  }
+
+  function removeParameter(idx: number) {
+    setParameters(parameters.filter((_, i) => i !== idx));
+  }
+
+  function updateParameter(idx: number, field: string, value: any) {
+    setParameters(parameters.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+  }
+
+  function toggleExpand(id: number) {
+    setExpandedPanels((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   function validate(): boolean {
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = "Test name is required";
-    if (!category) e.category = "Select a category";
-    if (!sampleType) e.sampleType = "Select sample type";
-    if (!price || Number(price) <= 0) e.price = "Enter a valid price";
-    if (min && max && Number(min) > Number(max)) e.min = "Min cannot be greater than Max";
+    if (!category) e.category = "Category is required";
+    if (!sampleType) e.sampleType = "Sample type is required";
+    if (!price || Number(price) <= 0) e.price = "Valid price is required";
+    if (!isPanel && min && max && Number(min) > Number(max)) e.min = "Min cannot exceed max";
+    if (isPanel && parameters.length === 0) e.parameters = "Panel must have at least one parameter";
+    if (isPanel && parameters.some((p) => !p.name?.trim())) e.parameters = "All parameters must have a name";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit() {
     if (!validate()) return;
 
-    const payload = {
-      name: name.trim(), category, sample_type: sampleType, method: method || null,
-      defaultMin: min ? Number(min) : null, defaultMax: max ? Number(max) : null,
-      unit: unit || null, price: Number(price), report_time: reportTime || null,
+    const payload: any = {
+      name: name.trim(),
+      category,
+      sample_type: sampleType,
+      method: method || null,
+      price: Number(price),
+      report_time: reportTime || null,
+      is_panel: isPanel,
     };
 
-    let res;
-    if (view === "edit" && editingId) {
-      res = await apiRequest(`/api/tests/${editingId}`, { method: "PUT", body: JSON.stringify(payload) });
-    } else {
-      res = await apiRequest("/api/tests", { method: "POST", body: JSON.stringify(payload) });
+    if (!isPanel) {
+      payload.defaultMin = min ? Number(min) : null;
+      payload.defaultMax = max ? Number(max) : null;
+      payload.unit = unit || null;
     }
+
+    if (isPanel) {
+      payload.parameters = parameters.map((p, i) => ({
+        name: p.name,
+        unit: p.unit || null,
+        defaultMin: p.default_min,
+        defaultMax: p.default_max,
+        method: p.method || null,
+      }));
+    }
+
+    const url = editingId ? `/api/tests/${editingId}` : "/api/tests";
+    const method2 = editingId ? "PUT" : "POST";
+
+    const res = await apiRequest(url, { method: method2, body: JSON.stringify(payload) });
+    const data = await res.json();
 
     if (res.ok) {
-      setAlert({ type: "success", msg: view === "edit" ? `"${name}" updated.` : `"${name}" added to catalogue.` });
-      await loadTests();
+      setAlert({ type: "success", msg: editingId ? "Test updated successfully" : "Test created successfully" });
       goBack();
+      loadTests();
     } else {
-      const d = await res.json();
-      setAlert({ type: "error", msg: d.error || "Failed to save test." });
+      setAlert({ type: "error", msg: data.error || "Failed to save test" });
     }
-    setTimeout(() => setAlert(null), 4000);
+    setTimeout(() => setAlert(null), 3000);
   }
 
-  // Dynamic categories: merge defaults + any from existing tests
-  const allCategories = Array.from(new Set([...DEFAULT_CATEGORIES, ...tests.map((t) => t.category)])).sort();
+  async function handleDelete(id: number) {
+    if (!confirm("Delete this test? This cannot be undone.")) return;
+    const res = await apiRequest(`/api/tests/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setAlert({ type: "success", msg: "Test deleted" });
+      loadTests();
+    } else {
+      setAlert({ type: "error", msg: "Failed to delete" });
+    }
+    setTimeout(() => setAlert(null), 3000);
+  }
 
-  // Categories for tab filter
-  const categories = ["All", ...Array.from(new Set(tests.map((t) => t.category))).sort()];
-
+  const categories = ["All", ...new Set(tests.map((t) => t.category))];
   const filtered = tests.filter((t) => {
-    const matchesSearch = t.name.toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = categoryTab === "All" || t.category === categoryTab;
-    return matchesSearch && matchesCategory;
+    const matchCat = categoryTab === "All" || t.category === categoryTab;
+    const matchSearch = !search || t.name.toLowerCase().includes(search.toLowerCase());
+    return matchCat && matchSearch;
   });
 
-  return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar role="doctor" email="doctor@mylab.com" />
-      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
-        {alert && <Alert severity={alert.type} sx={{ mb: 2, borderRadius: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
+  // LIST VIEW
+  if (view === "list") {
+    return (
+      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+        <Sidebar role="doctor" />
+        <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
+          {alert && <Alert severity={alert.type} sx={{ mb: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
 
-        {/* LIST VIEW */}
-        {view === "list" && (
-          <>
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
-              <Box>
-                <Typography variant="h5">Test Catalogue</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {tests.length} tests across {categories.length - 1} categories
-                </Typography>
-              </Box>
-              <Button variant="contained" startIcon={<AddOutlined />} onClick={openAdd}>
-                Add Test
-              </Button>
-            </Box>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>Test Catalogue</Typography>
+            <Button variant="contained" startIcon={<AddOutlined />} onClick={openAdd}>Add Test</Button>
+          </Box>
 
-            <Card>
-              <CardContent sx={{ pb: 0 }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                  <Tabs
-                    value={categoryTab}
-                    onChange={(_, v) => setCategoryTab(v)}
-                    variant="scrollable"
-                    scrollButtons="auto"
-                    sx={{ "& .MuiTab-root": { textTransform: "none", fontSize: 13, minHeight: 36, py: 0 } }}
-                  >
-                    {categories.map((c) => <Tab key={c} label={c} value={c} />)}
-                  </Tabs>
-                  <TextField
-                    placeholder="Search…"
-                    size="small"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    sx={{ width: 200, ml: 2 }}
-                    InputProps={{ startAdornment: <InputAdornment position="start"><SearchOutlined sx={{ fontSize: 16 }} /></InputAdornment> }}
-                  />
-                </Box>
-              </CardContent>
+          <TextField
+            placeholder="Search tests..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            fullWidth
+            sx={{ mb: 2 }}
+            InputProps={{ startAdornment: <InputAdornment position="start"><SearchOutlined /></InputAdornment> }}
+          />
 
-              <TableContainer sx={{ maxHeight: "calc(100vh - 240px)" }}>
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow sx={{ "& th": { fontWeight: 600, color: "text.secondary", fontSize: 11, bgcolor: "#f8fafc" } }}>
-                      <TableCell>Test Name</TableCell>
-                      <TableCell>Category</TableCell>
-                      <TableCell>Sample</TableCell>
-                      <TableCell>Normal Range</TableCell>
-                      <TableCell>Method</TableCell>
-                      <TableCell>TAT</TableCell>
-                      <TableCell align="right">Price</TableCell>
-                      <TableCell align="center" sx={{ width: 50 }}>Edit</TableCell>
+          <Tabs value={categoryTab} onChange={(_, v) => setCategoryTab(v)} variant="scrollable" sx={{ mb: 2 }}>
+            {categories.map((c) => <Tab key={c} label={c} value={c} />)}
+          </Tabs>
+
+          <TableContainer component={Card}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ "& th": { fontWeight: 600, fontSize: 12, bgcolor: "#f8fafc" } }}>
+                  <TableCell width={40}></TableCell>
+                  <TableCell>Test Name</TableCell>
+                  <TableCell>Category</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Sample</TableCell>
+                  <TableCell align="right">Price (₹)</TableCell>
+                  <TableCell align="center">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filtered.map((test) => (
+                  <React.Fragment key={test.id}>
+                    <TableRow hover>
+                      <TableCell>
+                        {test.is_panel && (
+                          <IconButton size="small" onClick={() => toggleExpand(test.id)}>
+                            {expandedPanels.has(test.id) ? <ExpandLessOutlined fontSize="small" /> : <ExpandMoreOutlined fontSize="small" />}
+                          </IconButton>
+                        )}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 500 }}>
+                        {test.name}
+                        {test.is_panel && (
+                          <Chip label={`${test.parameters?.length || 0} params`} size="small" sx={{ ml: 1, fontSize: 10, height: 18 }} color="info" />
+                        )}
+                      </TableCell>
+                      <TableCell><Chip label={test.category} size="small" variant="outlined" sx={{ fontSize: 11 }} /></TableCell>
+                      <TableCell>
+                        <Chip label={test.is_panel ? "Panel" : "Single"} size="small" color={test.is_panel ? "primary" : "default"} sx={{ fontSize: 10, height: 20 }} />
+                      </TableCell>
+                      <TableCell sx={{ fontSize: 12 }}>{test.sample_type}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>₹{test.price}</TableCell>
+                      <TableCell align="center">
+                        <Tooltip title="Edit"><IconButton size="small" onClick={() => openEdit(test)}><EditOutlined fontSize="small" /></IconButton></Tooltip>
+                        <Tooltip title="Delete"><IconButton size="small" color="error" onClick={() => handleDelete(test.id)}><DeleteOutlined fontSize="small" /></IconButton></Tooltip>
+                      </TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filtered.map((t) => (
-                      <TableRow key={t.id} hover sx={{ "& td": { fontSize: 12 } }}>
-                        <TableCell sx={{ fontWeight: 500 }}>{t.name}</TableCell>
-                        <TableCell>
-                          <Chip label={t.category} size="small" variant="outlined" sx={{ fontSize: 10, height: 20 }} />
+                    {/* Expanded panel parameters */}
+                    {test.is_panel && expandedPanels.has(test.id) && test.parameters?.map((param) => (
+                      <TableRow key={`param-${param.display_order}`} sx={{ bgcolor: "#f8fafc" }}>
+                        <TableCell></TableCell>
+                        <TableCell sx={{ pl: 5, fontSize: 12, color: "text.secondary" }}>↳ {param.name}</TableCell>
+                        <TableCell sx={{ fontSize: 11 }}>{param.unit || "—"}</TableCell>
+                        <TableCell sx={{ fontSize: 11 }}>
+                          {param.default_min != null && param.default_max != null ? `${param.default_min} – ${param.default_max}` : "—"}
                         </TableCell>
-                        <TableCell>{t.sample_type}</TableCell>
-                        <TableCell>
-                          {t.default_min != null && t.default_max != null
-                            ? `${t.default_min}–${t.default_max} ${t.unit || ""}`
-                            : <Typography variant="caption" color="text.disabled">—</Typography>}
-                        </TableCell>
-                        <TableCell>{t.method || "—"}</TableCell>
-                        <TableCell>{t.report_time || "—"}</TableCell>
-                        <TableCell align="right" sx={{ fontWeight: 600, color: "#00897b" }}>₹{t.price.toFixed(0)}</TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="Edit">
-                            <IconButton size="small" onClick={() => openEdit(t)} aria-label={`Edit test ${t.name}`}>
-                              <EditOutlined sx={{ fontSize: 16 }} />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
+                        <TableCell sx={{ fontSize: 11 }}>{param.method || "—"}</TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
                       </TableRow>
                     ))}
-                    {filtered.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={8} align="center" sx={{ py: 5, color: "text.secondary" }}>
-                          {search || categoryTab !== "All" ? "No tests match your filters" : "No tests added yet"}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Card>
-          </>
-        )}
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      </Box>
+    );
+  }
 
-        {/* ADD / EDIT VIEW */}
-        {(view === "add" || view === "edit") && (
-          <>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 3 }}>
-              <Button variant="outlined" size="small" startIcon={<ArrowBackOutlined />} onClick={goBack}>
-                Back
-              </Button>
-              <Typography variant="h5">{view === "edit" ? "Edit Test" : "Add New Test"}</Typography>
-            </Box>
+  // ADD/EDIT VIEW
+  return (
+    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
+      <Sidebar role="doctor" />
+      <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
+        {alert && <Alert severity={alert.type} sx={{ mb: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
 
-            <Card sx={{ maxWidth: 640 }}>
-              <CardContent>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2.5 }}>
-                  <ScienceOutlined sx={{ color: "primary.main" }} />
-                  <Typography variant="h6">{view === "edit" ? "Update Test Details" : "Test Details"}</Typography>
-                </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
+          <Button variant="outlined" size="small" startIcon={<ArrowBackOutlined />} onClick={goBack}>Back</Button>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>{view === "add" ? "Add New Test" : "Edit Test"}</Typography>
+        </Box>
 
-                <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-                  {/* Test Name */}
-                  <TextField
-                    label="Test Name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required fullWidth
-                    placeholder="e.g. Complete Blood Count (CBC)"
-                    error={!!errors.name}
-                    helperText={errors.name}
-                  />
+        <Card>
+          <CardContent>
+            <Grid container spacing={2}>
+              {/* Panel toggle */}
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={<Switch checked={isPanel} onChange={(e) => setIsPanel(e.target.checked)} color="primary" />}
+                  label={<Typography sx={{ fontWeight: 600 }}>This is a Panel Test (contains multiple parameters)</Typography>}
+                />
+              </Grid>
 
-                  <Grid container spacing={2}>
-                    {/* Category */}
-                    <Grid item xs={12} sm={6}>
-                      <Autocomplete
-                        freeSolo
-                        options={allCategories}
-                        value={category}
-                        onChange={(_, val) => setCategory(val || "")}
-                        onInputChange={(_, val) => setCategory(val || "")}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            label="Category"
-                            required
-                            error={!!errors.category}
-                            helperText={errors.category || "Select or type a new category"}
-                            placeholder="e.g. Hematology"
-                          />
-                        )}
-                      />
-                    </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField label="Test Name *" value={name} onChange={(e) => setName(e.target.value)} fullWidth error={!!errors.name} helperText={errors.name} />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth error={!!errors.category}>
+                  <InputLabel>Category *</InputLabel>
+                  <Select value={category} onChange={(e) => setCategory(e.target.value)} label="Category *">
+                    {DEFAULT_CATEGORIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth error={!!errors.sampleType}>
+                  <InputLabel>Sample Type *</InputLabel>
+                  <Select value={sampleType} onChange={(e) => setSampleType(e.target.value)} label="Sample Type *">
+                    {SAMPLE_TYPES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField label="Method" value={method} onChange={(e) => setMethod(e.target.value)} fullWidth />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <TextField label="Price (₹) *" type="number" value={price} onChange={(e) => setPrice(e.target.value)} fullWidth error={!!errors.price} helperText={errors.price} />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <FormControl fullWidth>
+                  <InputLabel>Report Time</InputLabel>
+                  <Select value={reportTime} onChange={(e) => setReportTime(e.target.value)} label="Report Time">
+                    <MenuItem value="">—</MenuItem>
+                    {REPORT_TIMES.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
 
-                    {/* Sample Type */}
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth required error={!!errors.sampleType}>
-                        <InputLabel>Sample Type</InputLabel>
-                        <Select value={sampleType} onChange={(e) => setSampleType(e.target.value)} label="Sample Type">
-                          {SAMPLE_TYPES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                        </Select>
-                        {errors.sampleType && <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.5 }}>{errors.sampleType}</Typography>}
-                      </FormControl>
-                    </Grid>
+              {/* Single test fields */}
+              {!isPanel && (
+                <>
+                  <Grid item xs={12} md={2}>
+                    <TextField label="Unit" value={unit} onChange={(e) => setUnit(e.target.value)} fullWidth />
                   </Grid>
-
-                  {/* Method */}
-                  <TextField
-                    label="Method / Technique"
-                    value={method}
-                    onChange={(e) => setMethod(e.target.value)}
-                    fullWidth
-                    placeholder="e.g. CLIA, Enzymatic, Microscopy"
-                    helperText="Testing methodology used (optional)"
-                  />
-
-                  <Grid container spacing={2}>
-                    {/* Price */}
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        label="Price"
-                        type="number"
-                        value={price}
-                        onChange={(e) => setPrice(e.target.value)}
-                        required fullWidth
-                        inputProps={{ min: 0 }}
-                        InputProps={{ startAdornment: <InputAdornment position="start">₹</InputAdornment> }}
-                        error={!!errors.price}
-                        helperText={errors.price}
-                      />
-                    </Grid>
-
-                    {/* Report Time */}
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth>
-                        <InputLabel>Report Time (TAT)</InputLabel>
-                        <Select value={reportTime} onChange={(e) => setReportTime(e.target.value)} label="Report Time (TAT)">
-                          <MenuItem value="">Not specified</MenuItem>
-                          {REPORT_TIMES.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-                        </Select>
-                      </FormControl>
-                    </Grid>
+                  <Grid item xs={12} md={2}>
+                    <TextField label="Normal Min" type="number" value={min} onChange={(e) => setMin(e.target.value)} fullWidth error={!!errors.min} />
                   </Grid>
-
-                  <Divider />
-                  <Typography variant="subtitle2" color="text.secondary">Normal Reference Range (optional)</Typography>
-
-                  <Grid container spacing={2}>
-                    <Grid item xs={4}>
-                      <TextField
-                        label="Min Value"
-                        type="number"
-                        value={min}
-                        onChange={(e) => setMin(e.target.value)}
-                        fullWidth
-                        error={!!errors.min}
-                        helperText={errors.min}
-                      />
-                    </Grid>
-                    <Grid item xs={4}>
-                      <TextField
-                        label="Max Value"
-                        type="number"
-                        value={max}
-                        onChange={(e) => setMax(e.target.value)}
-                        fullWidth
-                      />
-                    </Grid>
-                    <Grid item xs={4}>
-                      <TextField
-                        label="Unit"
-                        value={unit}
-                        onChange={(e) => setUnit(e.target.value)}
-                        fullWidth
-                        placeholder="g/dL, mg/dL"
-                      />
-                    </Grid>
+                  <Grid item xs={12} md={2}>
+                    <TextField label="Normal Max" type="number" value={max} onChange={(e) => setMax(e.target.value)} fullWidth />
                   </Grid>
+                </>
+              )}
 
-                  <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
-                    <Button type="submit" variant="contained" startIcon={view === "edit" ? <EditOutlined /> : <AddOutlined />} sx={{ px: 4 }}>
-                      {view === "edit" ? "Update Test" : "Add Test"}
-                    </Button>
-                    <Button variant="outlined" onClick={goBack}>
-                      Cancel
+              {/* Panel parameters */}
+              {isPanel && (
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 2 }} />
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                      Panel Parameters ({parameters.length})
+                    </Typography>
+                    <Button startIcon={<AddCircleOutlined />} onClick={addParameter} variant="outlined" size="small">
+                      Add Parameter
                     </Button>
                   </Box>
+                  {errors.parameters && <Alert severity="error" sx={{ mb: 2 }}>{errors.parameters}</Alert>}
+
+                  {parameters.map((param, idx) => (
+                    <Box key={idx} sx={{ display: "flex", gap: 1, mb: 1.5, alignItems: "center", p: 1.5, bgcolor: "#f8fafc", borderRadius: 1 }}>
+                      <Typography sx={{ fontSize: 12, color: "text.secondary", minWidth: 20 }}>{idx + 1}.</Typography>
+                      <TextField
+                        size="small" label="Parameter Name *" value={param.name}
+                        onChange={(e) => updateParameter(idx, "name", e.target.value)}
+                        sx={{ flex: 2 }}
+                      />
+                      <TextField
+                        size="small" label="Unit" value={param.unit || ""}
+                        onChange={(e) => updateParameter(idx, "unit", e.target.value)}
+                        sx={{ flex: 1 }}
+                      />
+                      <TextField
+                        size="small" label="Min" type="number" value={param.default_min ?? ""}
+                        onChange={(e) => updateParameter(idx, "default_min", e.target.value ? Number(e.target.value) : null)}
+                        sx={{ width: 80 }}
+                      />
+                      <TextField
+                        size="small" label="Max" type="number" value={param.default_max ?? ""}
+                        onChange={(e) => updateParameter(idx, "default_max", e.target.value ? Number(e.target.value) : null)}
+                        sx={{ width: 80 }}
+                      />
+                      <TextField
+                        size="small" label="Method" value={param.method || ""}
+                        onChange={(e) => updateParameter(idx, "method", e.target.value)}
+                        sx={{ flex: 1 }}
+                      />
+                      <IconButton color="error" size="small" onClick={() => removeParameter(idx)}>
+                        <RemoveCircleOutlined fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Grid>
+              )}
+
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+                <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
+                  <Button variant="outlined" onClick={goBack}>Cancel</Button>
+                  <Button variant="contained" onClick={handleSubmit}>
+                    {editingId ? "Update Test" : "Create Test"}
+                  </Button>
                 </Box>
-              </CardContent>
-            </Card>
-          </>
-        )}
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
       </Box>
     </Box>
   );
