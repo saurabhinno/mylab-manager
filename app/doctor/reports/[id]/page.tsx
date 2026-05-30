@@ -18,6 +18,7 @@ interface ReportItemData {
   unit: string | null;
   normal_min: number | null;
   normal_max: number | null;
+  panel_name: string | null;
 }
 
 interface LabSettingsData {
@@ -172,29 +173,49 @@ export default function DoctorReportViewPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {report.reportItems?.map((item, idx) => {
-                    const st = getStatus(item);
-                    const abnormal = st === "high" || st === "low";
-                    return (
-                      <TableRow key={item.id} sx={{
-                        bgcolor: abnormal ? "#fef2f2" : idx % 2 === 0 ? "#fff" : "#f8fafc",
-                        "& td": { fontSize: 12, py: 1.2, borderBottom: "1px solid #e2e8f0" },
-                      }}>
-                        <TableCell sx={{ fontWeight: 500 }}>{item.test_name}</TableCell>
-                        <TableCell align="center" sx={{ fontWeight: 700, color: abnormal ? "#dc2626" : "#1a2332", fontSize: 13 }}>{item.result_value || "—"}</TableCell>
-                        <TableCell align="center" sx={{ color: "text.secondary" }}>{item.unit || "—"}</TableCell>
-                        <TableCell align="center" sx={{ color: "text.secondary" }}>
-                          {item.normal_min != null && item.normal_max != null ? `${item.normal_min} – ${item.normal_max}${item.unit ? ` ${item.unit}` : ""}` : "—"}
-                        </TableCell>
-                        <TableCell align="center">
-                          {st === "normal" && <Chip label="Normal" size="small" color="success" sx={{ fontSize: 9, height: 18 }} />}
-                          {st === "high" && <Chip label="HIGH" size="small" color="error" sx={{ fontSize: 9, height: 18, fontWeight: 700 }} />}
-                          {st === "low" && <Chip label="LOW" size="small" color="warning" sx={{ fontSize: 9, height: 18, fontWeight: 700 }} />}
-                          {st === "unknown" && <Typography variant="caption" color="text.disabled">—</Typography>}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {(() => {
+                    const items = report.reportItems || [];
+                    const rows: React.ReactNode[] = [];
+                    const seenPanels = new Set<string>();
+                    let rowIdx = 0;
+
+                    for (const item of items) {
+                      if (item.panel_name && !seenPanels.has(item.panel_name)) {
+                        seenPanels.add(item.panel_name);
+                        rows.push(
+                          <TableRow key={`panel-${item.panel_name}`} sx={{ bgcolor: "#eef4fb" }}>
+                            <TableCell colSpan={5} sx={{ fontWeight: 700, fontSize: 12, color: "#0f4c81", py: 1, borderBottom: "1px solid #c8ddf0" }}>
+                              {item.panel_name}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }
+
+                      const st = getStatus(item);
+                      const abnormal = st === "high" || st === "low";
+                      rows.push(
+                        <TableRow key={item.id} sx={{
+                          bgcolor: abnormal ? "#fef2f2" : rowIdx % 2 === 0 ? "#fff" : "#f8fafc",
+                          "& td": { fontSize: 12, py: 1.2, borderBottom: "1px solid #e2e8f0" },
+                        }}>
+                          <TableCell sx={{ fontWeight: 500, pl: item.panel_name ? 4 : 2 }}>{item.test_name}</TableCell>
+                          <TableCell align="center" sx={{ fontWeight: 700, color: abnormal ? "#dc2626" : "#1a2332", fontSize: 13 }}>{item.result_value || "—"}</TableCell>
+                          <TableCell align="center" sx={{ color: "text.secondary" }}>{item.unit || "—"}</TableCell>
+                          <TableCell align="center" sx={{ color: "text.secondary" }}>
+                            {item.normal_min != null && item.normal_max != null ? `${item.normal_min} – ${item.normal_max}` : "—"}
+                          </TableCell>
+                          <TableCell align="center">
+                            {st === "normal" && <Chip label="Normal" size="small" color="success" sx={{ fontSize: 9, height: 18 }} />}
+                            {st === "high" && <Chip label="HIGH" size="small" color="error" sx={{ fontSize: 9, height: 18, fontWeight: 700 }} />}
+                            {st === "low" && <Chip label="LOW" size="small" color="warning" sx={{ fontSize: 9, height: 18, fontWeight: 700 }} />}
+                            {st === "unknown" && <Typography variant="caption" color="text.disabled">—</Typography>}
+                          </TableCell>
+                        </TableRow>
+                      );
+                      rowIdx++;
+                    }
+                    return rows;
+                  })()}
                 </TableBody>
               </Table>
             </TableContainer>

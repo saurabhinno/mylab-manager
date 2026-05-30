@@ -12,6 +12,9 @@ export class TestDefinition extends Model {
   declare unit: string | null;
   declare price: number;
   declare report_time: string | null;
+  declare is_panel: boolean;
+  declare parent_id: number | null;
+  declare display_order: number;
 }
 
 TestDefinition.init(
@@ -24,7 +27,6 @@ TestDefinition.init(
     name: {
       type: DataTypes.STRING(220),
       allowNull: false,
-      unique: true,
     },
     category: {
       type: DataTypes.STRING(100),
@@ -61,6 +63,21 @@ TestDefinition.init(
       type: DataTypes.STRING(60),
       allowNull: true,
     },
+    is_panel: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    parent_id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: true,
+      defaultValue: null,
+    },
+    display_order: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
   },
   {
     sequelize,
@@ -68,3 +85,7 @@ TestDefinition.init(
     timestamps: true,
   }
 );
+
+// Self-referencing association
+TestDefinition.hasMany(TestDefinition, { as: "parameters", foreignKey: "parent_id" });
+TestDefinition.belongsTo(TestDefinition, { as: "panel", foreignKey: "parent_id" });

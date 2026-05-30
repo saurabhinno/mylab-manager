@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Box, Typography, Card, CardContent, TextField, Button, Alert,
   Table, TableBody, TableCell, TableHead, TableRow, TableContainer,
-  Chip, CircularProgress, Divider, Grid,
+  Chip, CircularProgress, Divider,
 } from "@mui/material";
 import { SaveOutlined, ArrowBackOutlined, CheckCircleOutlined } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
@@ -20,6 +20,7 @@ interface ReportItemData {
   unit: string | null;
   normal_min: number | null;
   normal_max: number | null;
+  panel_name: string | null;
 }
 
 interface ReportData {
@@ -40,6 +41,7 @@ export default function EnterResultsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const inputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
   useEffect(() => {
     if (params.id) {
@@ -65,6 +67,42 @@ export default function EnterResultsPage() {
     if (val < item.normal_min) return "low";
     if (val > item.normal_max) return "high";
     return "normal";
+  }
+
+  // Group items by panel_name
+  function getGroupedItems(): { panelName: string | null; items: ReportItemData[] }[] {
+    if (!report?.reportItems) return [];
+    const groups: { panelName: string | null; items: ReportItemData[] }[] = [];
+    const seen = new Set<string>();
+
+    for (const item of report.reportItems) {
+      const key = item.panel_name || `standalone_${item.id}`;
+      if (item.panel_name) {
+        if (!seen.has(item.panel_name)) {
+          seen.add(item.panel_name);
+          groups.push({
+            panelName: item.panel_name,
+            items: report.reportItems.filter((i) => i.panel_name === item.panel_name),
+          });
+        }
+      } else {
+        groups.push({ panelName: null, items: [item] });
+      }
+    }
+    return groups;
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent, itemId: number) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      // Focus next input
+      const allItems = report?.reportItems || [];
+      const idx = allItems.findIndex((i) => i.id === itemId);
+      if (idx < allItems.length - 1) {
+        const nextId = allItems[idx + 1].id;
+        inputRefs.current[nextId]?.focus();
+      }
+    }
   }
 
   async function handleSave(finalize: boolean) {
@@ -121,6 +159,8 @@ export default function EnterResultsPage() {
     );
   }
 
+  const grouped = getGroupedItems();
+
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
       <Sidebar role="doctor" />
@@ -139,59 +179,71 @@ export default function EnterResultsPage() {
 
         {alert && <Alert severity={alert.type} sx={{ mb: 2, borderRadius: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
 
-        <Card>
-          <CardContent sx={{ pb: 0 }}>
-            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-              Enter measured values for each test. Abnormal values will be highlighted automatically.
-            </Typography>
-          </CardContent>
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ "& th": { fontWeight: 600, fontSize: 12, color: "text.secondary", bgcolor: "#f8fafc" } }}>
-                  <TableCell>Test Name</TableCell>
-                  <TableCell>Sample</TableCell>
-                  <TableCell>Unit</TableCell>
-                  <TableCell>Normal Range</TableCell>
-                  <TableCell>Result</TableCell>
-                  <TableCell align="center">Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {report.reportItems?.map((item) => {
-                  const value = results[item.id] || "";
-                  const status = getStatus(item, value);
-                  const isAbnormal = status === "high" || status === "low";
-                  return (
-                    <TableRow key={item.id} sx={{ bgcolor: isAbnormal ? "#fef2f2" : "transparent" }}>
-                      <TableCell sx={{ fontWeight: 500, fontSize: 13 }}>{item.test_name}</TableCell>
-                      <TableCell sx={{ fontSize: 11, color: "text.secondary" }}>{item.sample_type || "—"}</TableCell>
-                      <TableCell sx={{ fontSize: 12 }}>{item.unit || "—"}</TableCell>
-                      <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>
-                        {item.normal_min != null && item.normal_max != null ? `${item.normal_min} – ${item.normal_max}` : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          size="small"
-                          value={value}
-                          onChange={(e) => setResults((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                          placeholder="Enter value"
-                          sx={{ width: 130 }}
-                        />
-                      </TableCell>
-                      <TableCell align="center">
-                        {status === "normal" && <Chip label="Normal" size="small" color="success" sx={{ fontSize: 10, height: 20 }} />}
-                        {status === "high" && <Chip label="High ↑" size="small" color="error" sx={{ fontSize: 10, height: 20 }} />}
-                        {status === "low" && <Chip label="Low ↓" size="small" color="warning" sx={{ fontSize: 10, height: 20 }} />}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
+        {/* Grouped results by panel */}
+        {grouped.map((group, gIdx) => (
+          <Card key={gIdx} sx={{ mb: 2, borderRadius: 2 }}>
+            {group.panelName && (
+              <CardContent sx={{ pb: 0, bgcolor: "#f0f7ff", borderBottom: "1px solid #e2e8f0" }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#0f4c81" }}>
+                  {group.panelName}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {group.items.length} parameters
+                </Typography>
+              </CardContent>
+            )}
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ "& th": { fontWeight: 600, fontSize: 12, color: "text.secondary", bgcolor: "#f8fafc" } }}>
+                    <TableCell>Test Parameter</TableCell>
+                    <TableCell>Unit</TableCell>
+                    <TableCell>Normal Range</TableCell>
+                    <TableCell>Result</TableCell>
+                    <TableCell align="center">Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {group.items.map((item) => {
+                    const value = results[item.id] || "";
+                    const status = getStatus(item, value);
+                    const isAbnormal = status === "high" || status === "low";
+                    return (
+                      <TableRow key={item.id} sx={{ bgcolor: isAbnormal ? "#fef2f2" : "transparent" }}>
+                        <TableCell sx={{ fontWeight: 500, fontSize: 13 }}>{item.test_name}</TableCell>
+                        <TableCell sx={{ fontSize: 12 }}>{item.unit || "—"}</TableCell>
+                        <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>
+                          {item.normal_min != null && item.normal_max != null ? `${item.normal_min} – ${item.normal_max}` : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            size="small"
+                            inputRef={(el) => { inputRefs.current[item.id] = el; }}
+                            value={value}
+                            onChange={(e) => setResults((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                            onKeyDown={(e) => handleKeyDown(e, item.id)}
+                            placeholder="Enter value"
+                            sx={{ width: 130 }}
+                          />
+                        </TableCell>
+                        <TableCell align="center">
+                          {status === "normal" && <Chip label="Normal" size="small" color="success" sx={{ fontSize: 10, height: 20 }} />}
+                          {status === "high" && <Chip label="High ↑" size="small" color="error" sx={{ fontSize: 10, height: 20 }} />}
+                          {status === "low" && <Chip label="Low ↓" size="small" color="warning" sx={{ fontSize: 10, height: 20 }} />}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Card>
+        ))}
+
+        {/* Action buttons */}
+        <Card sx={{ position: "sticky", bottom: 0, borderRadius: 2, mt: 2 }}>
           <CardContent>
-            <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
+            <Box sx={{ display: "flex", gap: 2 }}>
               <Button
                 variant="outlined"
                 onClick={() => handleSave(false)}

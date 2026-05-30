@@ -7,52 +7,137 @@ import { ReportItem } from "@/models/ReportItem";
 import { LabSettings } from "@/models/LabSettings";
 import { hashPassword } from "@/lib/session";
 
-const defaultTests = [
+// Panel tests with their parameters
+const panelTests = [
+  {
+    panel: { name: "Complete Blood Count (CBC)", category: "Hematology", sample_type: "Blood (EDTA)", method: "Automated Cell Counter", price: 350, report_time: "Same Day" },
+    parameters: [
+      { name: "Hemoglobin (Hb)", unit: "g/dL", default_min: 12, default_max: 17, method: "Cyanmethemoglobin", display_order: 1 },
+      { name: "Total WBC Count", unit: "cells/µL", default_min: 4000, default_max: 11000, method: "Automated", display_order: 2 },
+      { name: "RBC Count", unit: "million/µL", default_min: 4.5, default_max: 5.5, method: "Automated", display_order: 3 },
+      { name: "PCV / Hematocrit", unit: "%", default_min: 36, default_max: 50, method: "Automated", display_order: 4 },
+      { name: "MCV", unit: "fL", default_min: 80, default_max: 100, method: "Calculated", display_order: 5 },
+      { name: "MCH", unit: "pg", default_min: 27, default_max: 32, method: "Calculated", display_order: 6 },
+      { name: "MCHC", unit: "g/dL", default_min: 32, default_max: 36, method: "Calculated", display_order: 7 },
+      { name: "Platelet Count", unit: "lakhs/µL", default_min: 1.5, default_max: 4.0, method: "Automated", display_order: 8 },
+      { name: "Neutrophils", unit: "%", default_min: 40, default_max: 70, method: "Differential", display_order: 9 },
+      { name: "Lymphocytes", unit: "%", default_min: 20, default_max: 40, method: "Differential", display_order: 10 },
+      { name: "Eosinophils", unit: "%", default_min: 1, default_max: 6, method: "Differential", display_order: 11 },
+      { name: "Monocytes", unit: "%", default_min: 2, default_max: 10, method: "Differential", display_order: 12 },
+      { name: "Basophils", unit: "%", default_min: 0, default_max: 1, method: "Differential", display_order: 13 },
+    ],
+  },
+  {
+    panel: { name: "Lipid Profile", category: "Biochemistry", sample_type: "Serum", method: "Enzymatic", price: 500, report_time: "Same Day" },
+    parameters: [
+      { name: "Total Cholesterol", unit: "mg/dL", default_min: 0, default_max: 200, method: "CHOD-PAP", display_order: 1 },
+      { name: "Triglycerides", unit: "mg/dL", default_min: 0, default_max: 150, method: "GPO-PAP", display_order: 2 },
+      { name: "HDL Cholesterol", unit: "mg/dL", default_min: 40, default_max: 60, method: "Direct", display_order: 3 },
+      { name: "LDL Cholesterol", unit: "mg/dL", default_min: 0, default_max: 100, method: "Calculated", display_order: 4 },
+      { name: "VLDL Cholesterol", unit: "mg/dL", default_min: 5, default_max: 40, method: "Calculated", display_order: 5 },
+      { name: "Total Cholesterol/HDL Ratio", unit: "", default_min: 0, default_max: 5, method: "Calculated", display_order: 6 },
+    ],
+  },
+  {
+    panel: { name: "Liver Function Test (LFT)", category: "Biochemistry", sample_type: "Serum", method: "Multiple", price: 600, report_time: "Same Day" },
+    parameters: [
+      { name: "Total Bilirubin", unit: "mg/dL", default_min: 0.1, default_max: 1.2, method: "Diazo", display_order: 1 },
+      { name: "Direct Bilirubin", unit: "mg/dL", default_min: 0, default_max: 0.3, method: "Diazo", display_order: 2 },
+      { name: "Indirect Bilirubin", unit: "mg/dL", default_min: 0.1, default_max: 0.9, method: "Calculated", display_order: 3 },
+      { name: "SGOT (AST)", unit: "U/L", default_min: 5, default_max: 40, method: "IFCC", display_order: 4 },
+      { name: "SGPT (ALT)", unit: "U/L", default_min: 7, default_max: 56, method: "IFCC", display_order: 5 },
+      { name: "Alkaline Phosphatase (ALP)", unit: "U/L", default_min: 44, default_max: 147, method: "IFCC", display_order: 6 },
+      { name: "Total Protein", unit: "g/dL", default_min: 6.0, default_max: 8.3, method: "Biuret", display_order: 7 },
+      { name: "Albumin", unit: "g/dL", default_min: 3.5, default_max: 5.5, method: "BCG", display_order: 8 },
+      { name: "Globulin", unit: "g/dL", default_min: 2.0, default_max: 3.5, method: "Calculated", display_order: 9 },
+      { name: "A/G Ratio", unit: "", default_min: 1.0, default_max: 2.5, method: "Calculated", display_order: 10 },
+    ],
+  },
+  {
+    panel: { name: "Kidney Function Test (KFT/RFT)", category: "Biochemistry", sample_type: "Serum", method: "Multiple", price: 600, report_time: "Same Day" },
+    parameters: [
+      { name: "Blood Urea", unit: "mg/dL", default_min: 15, default_max: 40, method: "Urease-GLDH", display_order: 1 },
+      { name: "Serum Creatinine", unit: "mg/dL", default_min: 0.6, default_max: 1.2, method: "Jaffe's", display_order: 2 },
+      { name: "Uric Acid", unit: "mg/dL", default_min: 3.5, default_max: 7.2, method: "Uricase", display_order: 3 },
+      { name: "BUN (Blood Urea Nitrogen)", unit: "mg/dL", default_min: 7, default_max: 20, method: "Calculated", display_order: 4 },
+      { name: "Sodium (Na+)", unit: "mEq/L", default_min: 136, default_max: 145, method: "ISE", display_order: 5 },
+      { name: "Potassium (K+)", unit: "mEq/L", default_min: 3.5, default_max: 5.1, method: "ISE", display_order: 6 },
+      { name: "Chloride (Cl-)", unit: "mEq/L", default_min: 98, default_max: 106, method: "ISE", display_order: 7 },
+      { name: "Calcium", unit: "mg/dL", default_min: 8.5, default_max: 10.5, method: "Arsenazo III", display_order: 8 },
+    ],
+  },
+  {
+    panel: { name: "Thyroid Profile (T3, T4, TSH)", category: "Thyroid", sample_type: "Serum", method: "CLIA", price: 650, report_time: "Same Day" },
+    parameters: [
+      { name: "T3 (Triiodothyronine)", unit: "ng/dL", default_min: 80, default_max: 200, method: "CLIA", display_order: 1 },
+      { name: "T4 (Thyroxine)", unit: "µg/dL", default_min: 4.5, default_max: 12, method: "CLIA", display_order: 2 },
+      { name: "TSH (Thyroid Stimulating Hormone)", unit: "µIU/mL", default_min: 0.4, default_max: 4.0, method: "CLIA", display_order: 3 },
+    ],
+  },
+  {
+    panel: { name: "Urine Routine & Microscopy", category: "Urine", sample_type: "Urine (Midstream)", method: "Microscopy + Dipstick", price: 100, report_time: "Same Day" },
+    parameters: [
+      { name: "Color", unit: null, default_min: null, default_max: null, method: "Visual", display_order: 1 },
+      { name: "Appearance", unit: null, default_min: null, default_max: null, method: "Visual", display_order: 2 },
+      { name: "pH", unit: "", default_min: 4.5, default_max: 8.0, method: "Dipstick", display_order: 3 },
+      { name: "Specific Gravity", unit: "", default_min: 1.005, default_max: 1.030, method: "Dipstick", display_order: 4 },
+      { name: "Protein", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 5 },
+      { name: "Glucose", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 6 },
+      { name: "Pus Cells", unit: "/HPF", default_min: 0, default_max: 5, method: "Microscopy", display_order: 7 },
+      { name: "RBCs", unit: "/HPF", default_min: 0, default_max: 2, method: "Microscopy", display_order: 8 },
+      { name: "Epithelial Cells", unit: "/HPF", default_min: null, default_max: null, method: "Microscopy", display_order: 9 },
+      { name: "Casts", unit: null, default_min: null, default_max: null, method: "Microscopy", display_order: 10 },
+      { name: "Crystals", unit: null, default_min: null, default_max: null, method: "Microscopy", display_order: 11 },
+    ],
+  },
+  {
+    panel: { name: "Widal Test", category: "Serology", sample_type: "Serum", method: "Slide Agglutination", price: 200, report_time: "Same Day" },
+    parameters: [
+      { name: "S. Typhi O", unit: null, default_min: null, default_max: null, method: "Agglutination", display_order: 1 },
+      { name: "S. Typhi H", unit: null, default_min: null, default_max: null, method: "Agglutination", display_order: 2 },
+      { name: "S. Paratyphi AH", unit: null, default_min: null, default_max: null, method: "Agglutination", display_order: 3 },
+      { name: "S. Paratyphi BH", unit: null, default_min: null, default_max: null, method: "Agglutination", display_order: 4 },
+    ],
+  },
+  {
+    panel: { name: "Iron Studies", category: "Biochemistry", sample_type: "Serum", method: "Colorimetric", price: 500, report_time: "Same Day" },
+    parameters: [
+      { name: "Serum Iron", unit: "µg/dL", default_min: 60, default_max: 170, method: "Colorimetric", display_order: 1 },
+      { name: "TIBC", unit: "µg/dL", default_min: 250, default_max: 370, method: "Colorimetric", display_order: 2 },
+      { name: "Transferrin Saturation", unit: "%", default_min: 20, default_max: 50, method: "Calculated", display_order: 3 },
+      { name: "Ferritin", unit: "ng/mL", default_min: 12, default_max: 300, method: "CLIA", display_order: 4 },
+    ],
+  },
+];
+
+// Standalone tests (single result)
+const standaloneTests = [
   // Hematology
-  { name: "Complete Blood Count (CBC)", category: "Hematology", sample_type: "Blood (EDTA)", unit: null, default_min: null, default_max: null, method: "Automated Cell Counter", price: 350, report_time: "Same Day" },
-  { name: "Hemoglobin (Hb)", category: "Hematology", sample_type: "Blood (EDTA)", unit: "g/dL", default_min: 12, default_max: 17, method: "Cyanmethemoglobin", price: 100, report_time: "Same Day" },
-  { name: "Platelet Count", category: "Hematology", sample_type: "Blood (EDTA)", unit: "lakhs/µL", default_min: 1.5, default_max: 4.0, method: "Automated", price: 150, report_time: "Same Day" },
   { name: "ESR (Erythrocyte Sedimentation Rate)", category: "Hematology", sample_type: "Blood (EDTA)", unit: "mm/hr", default_min: 0, default_max: 20, method: "Westergren", price: 100, report_time: "1 Hour" },
   { name: "Peripheral Blood Smear", category: "Hematology", sample_type: "Blood (EDTA)", unit: null, default_min: null, default_max: null, method: "Microscopy", price: 200, report_time: "Same Day" },
 
   // Biochemistry
   { name: "Blood Sugar Fasting (FBS)", category: "Biochemistry", sample_type: "Blood (Fluoride)", unit: "mg/dL", default_min: 70, default_max: 100, method: "GOD-POD", price: 80, report_time: "Same Day" },
   { name: "Blood Sugar PP (PPBS)", category: "Biochemistry", sample_type: "Blood (Fluoride)", unit: "mg/dL", default_min: 70, default_max: 140, method: "GOD-POD", price: 80, report_time: "Same Day" },
+  { name: "Blood Sugar Random (RBS)", category: "Biochemistry", sample_type: "Blood (Fluoride)", unit: "mg/dL", default_min: 70, default_max: 140, method: "GOD-POD", price: 80, report_time: "Same Day" },
   { name: "HbA1c (Glycated Hemoglobin)", category: "Biochemistry", sample_type: "Blood (EDTA)", unit: "%", default_min: 4, default_max: 5.6, method: "HPLC", price: 450, report_time: "Same Day" },
-  { name: "Blood Urea", category: "Biochemistry", sample_type: "Serum", unit: "mg/dL", default_min: 15, default_max: 40, method: "Urease-GLDH", price: 120, report_time: "Same Day" },
-  { name: "Serum Creatinine", category: "Biochemistry", sample_type: "Serum", unit: "mg/dL", default_min: 0.6, default_max: 1.2, method: "Jaffe's", price: 120, report_time: "Same Day" },
-  { name: "Uric Acid", category: "Biochemistry", sample_type: "Serum", unit: "mg/dL", default_min: 3.5, default_max: 7.2, method: "Uricase", price: 150, report_time: "Same Day" },
-  { name: "Total Cholesterol", category: "Biochemistry", sample_type: "Serum", unit: "mg/dL", default_min: 0, default_max: 200, method: "CHOD-PAP", price: 150, report_time: "Same Day" },
-  { name: "Triglycerides", category: "Biochemistry", sample_type: "Serum", unit: "mg/dL", default_min: 0, default_max: 150, method: "GPO-PAP", price: 150, report_time: "Same Day" },
-  { name: "HDL Cholesterol", category: "Biochemistry", sample_type: "Serum", unit: "mg/dL", default_min: 40, default_max: 60, method: "Direct", price: 180, report_time: "Same Day" },
-  { name: "LDL Cholesterol", category: "Biochemistry", sample_type: "Serum", unit: "mg/dL", default_min: 0, default_max: 100, method: "Calculated", price: 180, report_time: "Same Day" },
-  { name: "Lipid Profile", category: "Biochemistry", sample_type: "Serum", unit: null, default_min: null, default_max: null, method: "Enzymatic", price: 500, report_time: "Same Day" },
-  { name: "SGOT (AST)", category: "Biochemistry", sample_type: "Serum", unit: "U/L", default_min: 5, default_max: 40, method: "IFCC", price: 150, report_time: "Same Day" },
-  { name: "SGPT (ALT)", category: "Biochemistry", sample_type: "Serum", unit: "U/L", default_min: 7, default_max: 56, method: "IFCC", price: 150, report_time: "Same Day" },
-  { name: "Total Bilirubin", category: "Biochemistry", sample_type: "Serum", unit: "mg/dL", default_min: 0.1, default_max: 1.2, method: "Diazo", price: 120, report_time: "Same Day" },
-  { name: "Liver Function Test (LFT)", category: "Biochemistry", sample_type: "Serum", unit: null, default_min: null, default_max: null, method: "Multiple", price: 600, report_time: "Same Day" },
-  { name: "Kidney Function Test (KFT/RFT)", category: "Biochemistry", sample_type: "Serum", unit: null, default_min: null, default_max: null, method: "Multiple", price: 600, report_time: "Same Day" },
 
-  // Thyroid
-  { name: "TSH (Thyroid Stimulating Hormone)", category: "Thyroid", sample_type: "Serum", unit: "µIU/mL", default_min: 0.4, default_max: 4.0, method: "CLIA", price: 300, report_time: "Same Day" },
-  { name: "T3 (Triiodothyronine)", category: "Thyroid", sample_type: "Serum", unit: "ng/dL", default_min: 80, default_max: 200, method: "CLIA", price: 250, report_time: "Same Day" },
-  { name: "T4 (Thyroxine)", category: "Thyroid", sample_type: "Serum", unit: "µg/dL", default_min: 4.5, default_max: 12, method: "CLIA", price: 250, report_time: "Same Day" },
-  { name: "Thyroid Profile (T3, T4, TSH)", category: "Thyroid", sample_type: "Serum", unit: null, default_min: null, default_max: null, method: "CLIA", price: 650, report_time: "Same Day" },
-
-  // Urine
-  { name: "Urine Routine & Microscopy", category: "Urine", sample_type: "Urine (Midstream)", unit: null, default_min: null, default_max: null, method: "Microscopy + Dipstick", price: 100, report_time: "Same Day" },
+  // Thyroid (individual)
+  { name: "TSH", category: "Thyroid", sample_type: "Serum", unit: "µIU/mL", default_min: 0.4, default_max: 4.0, method: "CLIA", price: 300, report_time: "Same Day" },
 
   // Serology
-  { name: "Widal Test", category: "Serology", sample_type: "Serum", unit: null, default_min: null, default_max: null, method: "Slide Agglutination", price: 200, report_time: "Same Day" },
   { name: "CRP (C-Reactive Protein)", category: "Serology", sample_type: "Serum", unit: "mg/L", default_min: 0, default_max: 6, method: "Latex Agglutination", price: 250, report_time: "Same Day" },
   { name: "RA Factor", category: "Serology", sample_type: "Serum", unit: "IU/mL", default_min: 0, default_max: 14, method: "Latex", price: 250, report_time: "Same Day" },
+  { name: "ASO Titre", category: "Serology", sample_type: "Serum", unit: "IU/mL", default_min: 0, default_max: 200, method: "Latex", price: 250, report_time: "Same Day" },
   { name: "Dengue NS1 Antigen", category: "Serology", sample_type: "Serum", unit: null, default_min: null, default_max: null, method: "Rapid Card", price: 500, report_time: "Same Day" },
   { name: "Malaria Antigen (Rapid)", category: "Serology", sample_type: "Blood", unit: null, default_min: null, default_max: null, method: "Rapid Card", price: 300, report_time: "30 Minutes" },
+  { name: "HIV I & II (Rapid)", category: "Serology", sample_type: "Serum", unit: null, default_min: null, default_max: null, method: "Rapid Card", price: 300, report_time: "30 Minutes" },
+  { name: "HBsAg (Hepatitis B)", category: "Serology", sample_type: "Serum", unit: null, default_min: null, default_max: null, method: "Rapid Card", price: 300, report_time: "30 Minutes" },
 
   // Vitamins
   { name: "Vitamin D (25-OH)", category: "Vitamins", sample_type: "Serum", unit: "ng/mL", default_min: 30, default_max: 100, method: "CLIA", price: 800, report_time: "Next Day" },
   { name: "Vitamin B12", category: "Vitamins", sample_type: "Serum", unit: "pg/mL", default_min: 200, default_max: 900, method: "CLIA", price: 700, report_time: "Next Day" },
-  { name: "Iron Studies (Serum Iron)", category: "Vitamins", sample_type: "Serum", unit: "µg/dL", default_min: 60, default_max: 170, method: "Colorimetric", price: 300, report_time: "Same Day" },
+  { name: "Folic Acid", category: "Vitamins", sample_type: "Serum", unit: "ng/mL", default_min: 3, default_max: 17, method: "CLIA", price: 600, report_time: "Next Day" },
 ];
 
 export const initDatabase = async () => {
@@ -81,11 +166,58 @@ export const initDatabase = async () => {
     console.log("Default doctor created: doctor@mylab.com / password");
   }
 
-  // Seed default tests if table is empty
-  const testCount = await TestDefinition.count();
-  if (testCount === 0) {
-    await TestDefinition.bulkCreate(defaultTests as any[]);
-    console.log(`Seeded ${defaultTests.length} default tests`);
+  // Seed tests: truncate and re-seed if no panels exist
+  const panelCount = await TestDefinition.count({ where: { is_panel: true } });
+  if (panelCount === 0) {
+    // Truncate existing tests to start fresh with panel structure
+    await TestDefinition.destroy({ where: {}, truncate: true });
+
+    // Seed panel tests with their parameters
+    for (const { panel, parameters } of panelTests) {
+      const createdPanel = await TestDefinition.create({
+        name: panel.name,
+        category: panel.category,
+        sample_type: panel.sample_type,
+        method: panel.method,
+        price: panel.price,
+        report_time: panel.report_time,
+        is_panel: true,
+        parent_id: null,
+        display_order: 0,
+        unit: null,
+        default_min: null,
+        default_max: null,
+      } as any);
+
+      for (const param of parameters) {
+        await TestDefinition.create({
+          name: param.name,
+          category: panel.category,
+          sample_type: panel.sample_type,
+          method: param.method || panel.method,
+          price: 0,
+          report_time: panel.report_time,
+          is_panel: false,
+          parent_id: createdPanel.id,
+          display_order: param.display_order,
+          unit: param.unit || null,
+          default_min: param.default_min ?? null,
+          default_max: param.default_max ?? null,
+        } as any);
+      }
+    }
+
+    // Seed standalone tests
+    for (const test of standaloneTests) {
+      await TestDefinition.create({
+        ...test,
+        is_panel: false,
+        parent_id: null,
+        display_order: 0,
+      } as any);
+    }
+
+    console.log(`Seeded ${panelTests.length} panel tests and ${standaloneTests.length} standalone tests`);
   }
 
   // Seed default lab settings

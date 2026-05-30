@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import {
   Box, Typography, Card, CardContent, Chip, TextField, InputAdornment,
   CircularProgress, Button, IconButton, Dialog, DialogTitle,
@@ -11,7 +11,7 @@ import {
 import {
   SearchOutlined, AddOutlined, EditOutlined, CloseOutlined,
   ScienceOutlined, PersonOutlined, PrintOutlined, CheckCircleOutlined,
-  PhoneOutlined, NavigateNextOutlined, NavigateBeforeOutlined,
+  PhoneOutlined,
   PaymentOutlined, HistoryOutlined,
 } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
@@ -19,8 +19,9 @@ import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
-interface TestDef { id: number; name: string; category: string; sample_type: string; price: number; }
-interface ReportItem { id: number; test_name: string; sample_type: string | null; result_value: string; unit: string | null; normal_min: number | null; normal_max: number | null; }
+interface TestParam { id: number; name: string; unit: string | null; default_min: number | null; default_max: number | null; display_order: number; }
+interface TestDef { id: number; name: string; category: string; sample_type: string; price: number; is_panel: boolean; parameters?: TestParam[]; }
+interface ReportItem { id: number; test_name: string; sample_type: string | null; result_value: string; unit: string | null; normal_min: number | null; normal_max: number | null; panel_name: string | null; }
 interface Report { id: number; date: string; patient_name: string; patient_age: number; patient_gender: string | null; patient_phone: string | null; referred_by: string | null; total_price: number; payment_status: string; status: string; reportItems?: ReportItem[]; compounder?: { name: string | null; email: string }; }
 
 type ModalMode = null | "collect" | "results";
@@ -50,10 +51,8 @@ export default function CompounderReportsPage() {
   const [isPaid, setIsPaid] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Results form - wizard style
+  // Results form
   const [results, setResults] = useState<Record<number, string>>({});
-  const [currentTestIdx, setCurrentTestIdx] = useState(0);
-  const resultInputRef = useRef<HTMLInputElement>(null);
 
   const loadReports = () =>
     apiRequest("/api/reports").then((r) => r.json()).then((d) => { setReports(Array.isArray(d) ? d : []); setLoading(false); });
@@ -105,7 +104,6 @@ export default function CompounderReportsPage() {
 
   function openResults(report: Report) {
     setActiveReport(report);
-    setCurrentTestIdx(0);
     apiRequest(`/api/reports/${report.id}`).then((r) => r.json()).then((d) => {
       if (d.reportItems) {
         const init: Record<number, string> = {};
@@ -118,13 +116,6 @@ export default function CompounderReportsPage() {
   }
 
   function closeModal() { setModal(null); setActiveReport(null); }
-
-  // Focus result input when test changes
-  useEffect(() => {
-    if (modal === "results" && resultInputRef.current) {
-      setTimeout(() => resultInputRef.current?.focus(), 100);
-    }
-  }, [currentTestIdx, modal]);
 
   async function handleCollect() {
     if (!patientName.trim()) { setAlert({ type: "error", msg: "Patient name required" }); return; }
@@ -186,24 +177,10 @@ export default function CompounderReportsPage() {
   const selectedTests = allTests.filter((t) => selectedTestIds.includes(t.id));
   const totalPrice = selectedTests.reduce((s, t) => s + t.price, 0);
 
-  // Wizard: current test item
+  // Results items
   const testItems = activeReport?.reportItems || [];
-  const currentItem = testItems[currentTestIdx];
   const filledCount = testItems.filter((item) => results[item.id]?.trim()).length;
   const progress = testItems.length > 0 ? (filledCount / testItems.length) * 100 : 0;
-
-  function handleResultNext() {
-    if (currentTestIdx < testItems.length - 1) setCurrentTestIdx(currentTestIdx + 1);
-  }
-  function handleResultPrev() {
-    if (currentTestIdx > 0) setCurrentTestIdx(currentTestIdx - 1);
-  }
-  function handleResultKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleResultNext();
-    }
-  }
 
   const pendingCount = reports.filter((r) => r.status === "sample_collected").length;
   const todayCount = reports.filter((r) => r.date === today).length;
@@ -488,7 +465,7 @@ export default function CompounderReportsPage() {
                       {tests.map((t) => (
                         <Chip
                           key={t.id}
-                          label={`${t.name} • ₹${t.price}`}
+                          label={`${t.name}${t.is_panel && t.parameters?.length ? ` (${t.parameters.length})` : ""} • ₹${t.price}`}
                           onClick={() => setSelectedTestIds((p) => p.includes(t.id) ? p.filter((x) => x !== t.id) : [...p, t.id])}
                           color={selectedTestIds.includes(t.id) ? "primary" : "default"}
                           variant={selectedTestIds.includes(t.id) ? "filled" : "outlined"}
@@ -510,8 +487,8 @@ export default function CompounderReportsPage() {
           </DialogActions>
         </Dialog>
 
-        {/* ENTER RESULTS - WIZARD STYLE */}
-        <Dialog open={modal === "results"} onClose={closeModal} maxWidth="sm" fullWidth fullScreen PaperProps={{ sx: { borderRadius: { xs: 0, sm: 3 } } }}>
+        {/* ENTER RESULTS - ALL AT ONCE WITH GROUPING */}
+        <Dialog open={modal === "results"} onClose={closeModal} maxWidth="md" fullWidth fullScreen PaperProps={{ sx: { borderRadius: { xs: 0, sm: 3 } } }}>
           <DialogTitle sx={{ pb: 1, pt: 2 }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <Box>
@@ -532,75 +509,64 @@ export default function CompounderReportsPage() {
             </Box>
           </DialogTitle>
 
-          <DialogContent sx={{ display: "flex", flexDirection: "column", justifyContent: "center", px: 3 }}>
-            {currentItem && (
-              <Box sx={{ textAlign: "center", py: 4 }}>
-                {/* Test counter */}
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 13 }}>
-                  {t("compounder.test_of")} {currentTestIdx + 1} / {testItems.length}
-                </Typography>
-
-                {/* Test name - large */}
-                <Typography variant="h5" sx={{ fontWeight: 700, mt: 1, mb: 0.5 }}>
-                  {currentItem.test_name}
-                </Typography>
-
-                {/* Reference range */}
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-                  {currentItem.normal_min != null && currentItem.normal_max != null
-                    ? `Normal: ${currentItem.normal_min} – ${currentItem.normal_max} ${currentItem.unit || ""}`
-                    : currentItem.unit ? `Unit: ${currentItem.unit}` : ""}
-                </Typography>
-
-                {/* Large input */}
-                <TextField
-                  inputRef={resultInputRef}
-                  value={results[currentItem.id] || ""}
-                  onChange={(e) => setResults((p) => ({ ...p, [currentItem.id]: e.target.value }))}
-                  onKeyDown={handleResultKeyDown}
-                  placeholder={t("compounder.enter_value")}
-                  inputProps={{ inputMode: "decimal", style: { fontSize: 32, textAlign: "center", fontWeight: 700 } }}
-                  sx={{ width: "100%", maxWidth: 280, mx: "auto", "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
-                />
-
-                {/* Status indicator */}
-                {(() => {
-                  const val = results[currentItem.id] || "";
-                  const numVal = parseFloat(val);
-                  if (val && currentItem.normal_min != null && currentItem.normal_max != null && !isNaN(numVal)) {
-                    if (numVal < currentItem.normal_min) return <Chip label="↓ LOW" color="warning" sx={{ mt: 2, fontSize: 14, py: 2, fontWeight: 700 }} />;
-                    if (numVal > currentItem.normal_max) return <Chip label="↑ HIGH" color="error" sx={{ mt: 2, fontSize: 14, py: 2, fontWeight: 700 }} />;
-                    return <Chip label={`✓ ${t("compounder.normal")}`} color="success" sx={{ mt: 2, fontSize: 14, py: 2, fontWeight: 700 }} />;
+          <DialogContent sx={{ px: 3, pb: 2 }}>
+            {/* Group items by panel_name */}
+            {(() => {
+              const groups: { panelName: string | null; items: ReportItem[] }[] = [];
+              const seen = new Set<string>();
+              for (const item of testItems) {
+                if (item.panel_name) {
+                  if (!seen.has(item.panel_name)) {
+                    seen.add(item.panel_name);
+                    groups.push({ panelName: item.panel_name, items: testItems.filter((i) => i.panel_name === item.panel_name) });
                   }
-                  return null;
-                })()}
-              </Box>
-            )}
+                } else {
+                  groups.push({ panelName: null, items: [item] });
+                }
+              }
+              return groups.map((group, gIdx) => (
+                <Box key={gIdx} sx={{ mb: 3 }}>
+                  {group.panelName && (
+                    <Box sx={{ bgcolor: "#f0f7ff", px: 2, py: 1, borderRadius: 2, mb: 1 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#0f4c81" }}>{group.panelName}</Typography>
+                    </Box>
+                  )}
+                  {group.items.map((item) => {
+                    const val = results[item.id] || "";
+                    const numVal = parseFloat(val);
+                    let statusChip = null;
+                    if (val && item.normal_min != null && item.normal_max != null && !isNaN(numVal)) {
+                      if (numVal < item.normal_min) statusChip = <Chip label="↓ LOW" color="warning" size="small" sx={{ fontSize: 10, height: 20, ml: 1 }} />;
+                      else if (numVal > item.normal_max) statusChip = <Chip label="↑ HIGH" color="error" size="small" sx={{ fontSize: 10, height: 20, ml: 1 }} />;
+                      else statusChip = <Chip label="✓" color="success" size="small" sx={{ fontSize: 10, height: 20, ml: 1 }} />;
+                    }
+                    return (
+                      <Box key={item.id} sx={{ display: "flex", alignItems: "center", gap: 1, py: 1, px: 2, borderBottom: "1px solid #f1f5f9" }}>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{item.test_name}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {item.normal_min != null && item.normal_max != null ? `${item.normal_min}–${item.normal_max} ${item.unit || ""}` : item.unit || ""}
+                          </Typography>
+                        </Box>
+                        <TextField
+                          size="small"
+                          value={val}
+                          onChange={(e) => setResults((p) => ({ ...p, [item.id]: e.target.value }))}
+                          placeholder="Value"
+                          inputProps={{ inputMode: "decimal" }}
+                          sx={{ width: 110 }}
+                        />
+                        {statusChip}
+                      </Box>
+                    );
+                  })}
+                </Box>
+              ));
+            })()}
           </DialogContent>
 
-          {/* Navigation buttons */}
-          <Box sx={{ px: 3, pb: 2 }}>
-            <Box sx={{ display: "flex", gap: 1.5, mb: 2 }}>
-              <Button
-                variant="outlined"
-                onClick={handleResultPrev}
-                disabled={currentTestIdx === 0}
-                sx={{ flex: 1, py: 1.5, fontSize: 15 }}
-                startIcon={<NavigateBeforeOutlined />}
-              >
-                {t("compounder.previous")}
-              </Button>
-              <Button
-                variant="contained"
-                onClick={handleResultNext}
-                disabled={currentTestIdx >= testItems.length - 1}
-                sx={{ flex: 1, py: 1.5, fontSize: 15 }}
-                endIcon={<NavigateNextOutlined />}
-              >
-                {t("compounder.next")}
-              </Button>
-            </Box>
-            <Divider sx={{ mb: 2 }} />
+          {/* Action buttons */}
+          <Box sx={{ px: 3, pb: 2, borderTop: "1px solid #e2e8f0", pt: 2 }}>
             <Box sx={{ display: "flex", gap: 1.5 }}>
               <Button onClick={() => handleSaveResults(false)} variant="outlined" fullWidth disabled={saving} sx={{ py: 1.3, fontSize: 14 }}>
                 {t("compounder.save_draft")}

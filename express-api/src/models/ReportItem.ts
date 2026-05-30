@@ -16,6 +16,7 @@ export class ReportItem extends Model {
   declare normal_max: number | null;
   declare note: string | null;
   declare price: number;
+  declare panel_name: string | null;
 }
 
 ReportItem.init(
@@ -70,6 +71,11 @@ ReportItem.init(
       type: DataTypes.FLOAT,
       allowNull: false,
       defaultValue: 0,
+    },
+    panel_name: {
+      type: DataTypes.STRING(220),
+      allowNull: true,
+      defaultValue: null,
     },
   },
   {

@@ -60,7 +60,10 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     const testIds = tests.map((t: any) => t.testId || t);
-    const testDefinitions = await TestDefinition.findAll({ where: { id: testIds } });
+    const testDefinitions = await TestDefinition.findAll({
+      where: { id: testIds },
+      include: [{ model: TestDefinition, as: "parameters", order: [["display_order", "ASC"]] }],
+    });
     const totalPrice = testDefinitions.reduce((sum, test) => sum + test.price, 0);
 
     const doctor = await User.findOne({ where: { role: "doctor" } });
@@ -83,10 +86,30 @@ router.post("/", async (req: Request, res: Response) => {
       doctor_id: doctor.id,
     });
 
-    // Create report items without results (draft)
-    await Promise.all(
-      testDefinitions.map((def) =>
-        ReportItem.create({
+    // Create report items: for panels, create items for each child parameter
+    for (const def of testDefinitions) {
+      const params = (def as any).parameters || [];
+      if (def.is_panel && params.length > 0) {
+        // Panel test: create report items for each parameter
+        for (const param of params) {
+          await ReportItem.create({
+            report_id: report.id,
+            test_definition_id: param.id,
+            test_name: param.name,
+            sample_type: param.sample_type || def.sample_type || null,
+            result_type: "numeric",
+            result_value: "",
+            unit: param.unit || null,
+            normal_min: param.default_min,
+            normal_max: param.default_max,
+            note: null,
+            price: 0,
+            panel_name: def.name,
+          });
+        }
+      } else {
+        // Standalone test: create single report item
+        await ReportItem.create({
           report_id: report.id,
           test_definition_id: def.id,
           test_name: def.name,
@@ -98,9 +121,10 @@ router.post("/", async (req: Request, res: Response) => {
           normal_max: def.default_max,
           note: null,
           price: def.price,
-        })
-      )
-    );
+          panel_name: null,
+        });
+      }
+    }
 
     return res.json({ success: true, reportId: report.id });
   } catch (error) {
