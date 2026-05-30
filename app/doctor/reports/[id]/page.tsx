@@ -116,7 +116,7 @@ export default function DoctorReportViewPage() {
       <Box sx={{ "@media print": { display: "none" } }}><Sidebar role="doctor" email="doctor@mylab.com" /></Box>
       <Box sx={{ flexGrow: 1, p: 3, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center", "@media print": { p: 0, overflow: "visible", display: "block" } }} id="main-content" tabIndex={-1}>
         {/* Action bar */}
-        <Box sx={{ width: 794, mb: 2, display: "flex", gap: 2, "@media print": { display: "none" } }}>
+        <Box data-noprint="true" sx={{ width: 794, mb: 2, display: "flex", gap: 2, "@media print": { display: "none !important" } }}>
           <Button variant="outlined" size="small" startIcon={<ArrowBackOutlined />} component={Link} href="/doctor/reports">Back</Button>
           <Button variant="contained" size="small" startIcon={<PrintOutlined />} onClick={() => window.print()}>Print All</Button>
         </Box>

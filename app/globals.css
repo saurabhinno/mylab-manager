@@ -54,31 +54,65 @@ html, body {
     margin: 0 !important;
   }
 
-  /* Hide everything except report pages */
-  body > *:not(#__next),
-  .skip-to-content,
+  /* Hide sidebar and action bars */
   .MuiDrawer-root,
-  .MuiDrawer-paper {
+  .MuiDrawer-paper,
+  .skip-to-content {
     display: none !important;
   }
 
-  /* Show report pages */
-  .report-page {
+  /* Reset all containers to be visible and flow naturally */
+  body, body *, #__next, #__next * {
     visibility: visible !important;
-    position: relative !important;
-    width: 100% !important;
-    min-height: 100vh !important;
+    overflow: visible !important;
+    position: static !important;
+    float: none !important;
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
-    border-radius: 0 !important;
-    overflow: visible !important;
+  }
+
+  /* Hide non-report elements */
+  [data-noprint],
+  .MuiFab-root {
+    display: none !important;
+  }
+
+  /* Report pages: each one fills a printed page */
+  .report-page {
     display: flex !important;
     flex-direction: column !important;
+    width: 100% !important;
+    min-height: 100vh !important;
+    padding: 0 !important;
+    margin: 0 !important;
     page-break-after: always !important;
+    break-after: page !important;
   }
 
   .report-page:last-child {
     page-break-after: auto !important;
+    break-after: auto !important;
   }
+
+  /* Restore flex/table display for elements inside report pages */
+  .report-page *,
+  .report-page table,
+  .report-page tr,
+  .report-page td,
+  .report-page th {
+    position: static !important;
+    overflow: visible !important;
+  }
+
+  .report-page table { display: table !important; width: 100% !important; }
+  .report-page thead { display: table-header-group !important; }
+  .report-page tbody { display: table-row-group !important; }
+  .report-page tr { display: table-row !important; }
+  .report-page td, .report-page th { display: table-cell !important; }
 }
