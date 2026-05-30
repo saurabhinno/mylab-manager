@@ -81,8 +81,9 @@ export default function CompounderReportsPage() {
     return acc;
   }, [] as Report[]);
 
-  // Group tests by category
-  const testsByCategory = allTests.reduce((acc, t) => {
+  // Group tests: panels first, then by category
+  const panelTests = allTests.filter((t) => t.is_panel);
+  const standaloneByCategory = allTests.filter((t) => !t.is_panel).reduce((acc, t) => {
     if (!acc[t.category]) acc[t.category] = [];
     acc[t.category].push(t);
     return acc;
@@ -458,14 +459,34 @@ export default function CompounderReportsPage() {
                     <Chip label={`${selectedTestIds.length} ${t("compounder.selected")} • ₹${totalPrice}`} color="primary" sx={{ ml: "auto", fontWeight: 700, fontSize: 13 }} />
                   )}
                 </Box>
-                {Object.entries(testsByCategory).map(([cat, tests]) => (
+                {/* Panel tests first */}
+                {panelTests.length > 0 && (
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: "#0f4c81", textTransform: "uppercase", fontSize: 11 }}>📋 Panel Tests</Typography>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mt: 0.5 }}>
+                      {panelTests.map((t) => (
+                        <Chip
+                          key={t.id}
+                          label={`${t.name}${t.parameters?.length ? ` (${t.parameters.length})` : ""} • ₹${t.price}`}
+                          onClick={() => setSelectedTestIds((p) => p.includes(t.id) ? p.filter((x) => x !== t.id) : [...p, t.id])}
+                          color={selectedTestIds.includes(t.id) ? "primary" : "default"}
+                          variant={selectedTestIds.includes(t.id) ? "filled" : "outlined"}
+                          sx={{ cursor: "pointer", fontSize: 13, py: 2.5, fontWeight: selectedTestIds.includes(t.id) ? 600 : 400 }}
+                        />
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+                <Divider sx={{ my: 1.5 }} />
+                {/* Standalone tests by category */}
+                {Object.entries(standaloneByCategory).map(([cat, tests]) => (
                   <Box key={cat} sx={{ mb: 2 }}>
                     <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", fontSize: 11 }}>{cat}</Typography>
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mt: 0.5 }}>
                       {tests.map((t) => (
                         <Chip
                           key={t.id}
-                          label={`${t.name}${t.is_panel && t.parameters?.length ? ` (${t.parameters.length})` : ""} • ₹${t.price}`}
+                          label={`${t.name} • ₹${t.price}`}
                           onClick={() => setSelectedTestIds((p) => p.includes(t.id) ? p.filter((x) => x !== t.id) : [...p, t.id])}
                           color={selectedTestIds.includes(t.id) ? "primary" : "default"}
                           variant={selectedTestIds.includes(t.id) ? "filled" : "outlined"}
