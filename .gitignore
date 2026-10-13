@@ -10,3 +10,4 @@ dist/
 *.sqlite
 *.sqlite-journal
 electron/update-config.json
+electron/drive-config.json

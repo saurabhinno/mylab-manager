@@ -12,7 +12,7 @@ import {
   DashboardOutlined, ScienceOutlined, ArticleOutlined,
   PeopleOutlined, LogoutOutlined, LocalHospitalOutlined, PersonOutlined,
   SettingsOutlined, MenuOutlined, CloseOutlined, ChevronLeftOutlined, ChevronRightOutlined,
-  BiotechOutlined, SwapHorizOutlined,
+  BiotechOutlined, SwapHorizOutlined, CloudOutlined,
 } from '@mui/icons-material';
 import { apiRequest } from '@/lib/api';
 import LangSwitcher from '@/components/LangSwitcher';
@@ -69,6 +69,7 @@ export default function Sidebar({ role, email }: SidebarProps) {
     { label: t('nav.reports'), href: '/doctor/reports', icon: <ArticleOutlined /> },
     { label: t('nav.staff'), href: '/doctor/staff', icon: <PeopleOutlined /> },
     { label: t('nav.settings'), href: '/doctor/settings', icon: <SettingsOutlined /> },
+    { label: t('nav.cloud'), href: '/doctor/cloud', icon: <CloudOutlined /> },
     { label: t('nav.profile'), href: '/doctor/profile', icon: <PersonOutlined /> },
   ];
 

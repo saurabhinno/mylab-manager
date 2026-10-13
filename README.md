@@ -76,6 +76,36 @@ Files:
 
 **Updates never wipe this folder** — only app binaries are replaced.
 
+#### Cloud backup (Google Drive) — single Gmail token
+
+For one lab / one Gmail: generate a **refresh token once**, bake it into the app. Users do **not** log into Google in the UI.
+
+After login → **Cloud Backup**:
+- **Backup now** / **Restore**
+- Auto backup at **10:00 and 22:00** while MyLab is open
+- Empty PC on first launch can auto-offer restore from that same Drive
+
+**One-time setup (you):**
+
+1. Google Cloud Console → enable **Drive API**  
+2. Create OAuth client → **Desktop app**  
+3. Redirect URI: `http://127.0.0.1:17823/oauth2callback`  
+4. Generate token with your Gmail:
+
+```bash
+GOOGLE_DRIVE_CLIENT_ID=xxx.apps.googleusercontent.com \
+GOOGLE_DRIVE_CLIENT_SECRET=yyy \
+npm run drive:token
+```
+
+5. Add these to GitHub env `mylab / production` (prefer **Secrets**):
+   - `GOOGLE_DRIVE_CLIENT_ID`
+   - `GOOGLE_DRIVE_CLIENT_SECRET`
+   - `GOOGLE_DRIVE_REFRESH_TOKEN`
+6. Rebuild/release — all installs backup to **that one Gmail** Drive App Data folder
+
+Daily work stays offline; Drive is only for backup when online.
+
 #### Auto-update (internet)
 
 Installed apps check GitHub Releases shortly after launch. When a newer version exists they download it and prompt to restart.
