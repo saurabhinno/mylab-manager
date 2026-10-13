@@ -6,7 +6,7 @@ import {
   CircularProgress, Button, IconButton, Dialog, DialogTitle,
   DialogContent, DialogActions, Grid, FormControl, InputLabel, Select,
   MenuItem, FormControlLabel, Switch, Divider, Alert, Fab, Avatar,
-  LinearProgress,
+  LinearProgress, Tooltip,
 } from "@mui/material";
 import {
   SearchOutlined, AddOutlined, EditOutlined, CloseOutlined,
@@ -207,6 +207,38 @@ export default function CompounderReportsPage() {
       setAlert({ type: "error", msg: d.error || "Failed to delete" });
     }
     setTimeout(() => setAlert(null), 3000);
+  }
+
+  async function removeParameter(item: ReportItem) {
+    if (!activeReport) return;
+    const items = activeReport.reportItems || [];
+    if (items.length <= 1) {
+      setAlert({ type: "error", msg: "Cannot remove the last parameter. Delete the report instead." });
+      setTimeout(() => setAlert(null), 3000);
+      return;
+    }
+    if (!confirm(`Remove "${item.test_name}" from this report?`)) return;
+
+    const res = await apiRequest(`/api/reports/${activeReport.id}/items/${item.id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setAlert({ type: "error", msg: d.error || "Failed to remove parameter" });
+      setTimeout(() => setAlert(null), 3000);
+      return;
+    }
+
+    if (navigator.vibrate) navigator.vibrate(30);
+    setActiveReport({
+      ...activeReport,
+      reportItems: items.filter((i) => i.id !== item.id),
+    });
+    setResults((prev) => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
   }
 
   const selectedTests = allTests.filter((t) => selectedTestIds.includes(t.id));
@@ -628,6 +660,16 @@ export default function CompounderReportsPage() {
                           sx={{ width: 110 }}
                         />
                         {statusChip}
+                        <Tooltip title="Remove from report">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => removeParameter(item)}
+                            aria-label={`Remove ${item.test_name}`}
+                          >
+                            <CloseOutlined fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
                     );
                   })}

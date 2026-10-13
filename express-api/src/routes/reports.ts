@@ -148,6 +148,37 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
+// Remove a single parameter/test from a report (while entering results)
+router.delete("/:id/items/:itemId", async (req: Request, res: Response) => {
+  try {
+    const actor = await requireUser(req);
+    if (!actor) return res.status(401).json({ error: "Not authenticated" });
+
+    const report = await Report.findByPk(req.params.id);
+    if (!report) {
+      return res.status(404).json({ error: "Report not found." });
+    }
+
+    const item = await ReportItem.findByPk(req.params.itemId);
+    if (!item || item.report_id !== report.id) {
+      return res.status(404).json({ error: "Parameter not found on this report." });
+    }
+
+    const remaining = await ReportItem.count({ where: { report_id: report.id } });
+    if (remaining <= 1) {
+      return res.status(400).json({
+        error: "Cannot remove the last parameter. Delete the report instead.",
+      });
+    }
+
+    await item.destroy();
+    return res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Phase 2: Enter results — update report items with values
 router.put("/:id/results", async (req: Request, res: Response) => {
   try {

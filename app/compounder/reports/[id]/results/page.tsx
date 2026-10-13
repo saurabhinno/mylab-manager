@@ -5,11 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import {
   Box, Typography, Card, CardContent, TextField, Button, Alert,
   Table, TableBody, TableCell, TableHead, TableRow, TableContainer,
-  Chip, CircularProgress,
+  Chip, CircularProgress, IconButton, Tooltip,
 } from "@mui/material";
 import {
   SaveOutlined, ArrowBackOutlined, CheckCircleOutlined,
-  PaymentOutlined, DeleteOutlined,
+  PaymentOutlined, DeleteOutlined, CloseOutlined,
 } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
@@ -143,6 +143,36 @@ export default function EnterResultsPage() {
     }
   }
 
+  async function removeParameter(item: ReportItemData) {
+    if (!report) return;
+    if (report.reportItems.length <= 1) {
+      setAlert({ type: "error", msg: "Cannot remove the last parameter. Delete the report instead." });
+      setTimeout(() => setAlert(null), 4000);
+      return;
+    }
+    if (!confirm(`Remove "${item.test_name}" from this report?`)) return;
+
+    const res = await apiRequest(`/api/reports/${report.id}/items/${item.id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      setAlert({ type: "error", msg: d.error || "Failed to remove parameter" });
+      setTimeout(() => setAlert(null), 4000);
+      return;
+    }
+
+    setReport({
+      ...report,
+      reportItems: report.reportItems.filter((i) => i.id !== item.id),
+    });
+    setResults((prev) => {
+      const next = { ...prev };
+      delete next[item.id];
+      return next;
+    });
+  }
+
   async function handleSave(finalize: boolean) {
     if (!report) return;
     setSaving(true);
@@ -239,6 +269,7 @@ export default function EnterResultsPage() {
                     <TableCell>Normal Range</TableCell>
                     <TableCell>Result</TableCell>
                     <TableCell align="center">Status</TableCell>
+                    <TableCell align="center" width={48} />
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -268,6 +299,18 @@ export default function EnterResultsPage() {
                           {status === "normal" && <Chip label="Normal" size="small" color="success" sx={{ fontSize: 10, height: 20 }} />}
                           {status === "high" && <Chip label="High ↑" size="small" color="error" sx={{ fontSize: 10, height: 20 }} />}
                           {status === "low" && <Chip label="Low ↓" size="small" color="warning" sx={{ fontSize: 10, height: 20 }} />}
+                        </TableCell>
+                        <TableCell align="center">
+                          <Tooltip title="Remove from report">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => removeParameter(item)}
+                              aria-label={`Remove ${item.test_name}`}
+                            >
+                              <CloseOutlined fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     );
