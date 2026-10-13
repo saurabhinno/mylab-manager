@@ -36,6 +36,9 @@ const authUrl = oauth2.generateAuthUrl({
   access_type: "offline",
   prompt: "consent",
   scope: [
+    // Visible "MyLab Backups" folder in My Drive
+    "https://www.googleapis.com/auth/drive.file",
+    // Still allow reading older App Data backups if present
     "https://www.googleapis.com/auth/drive.appdata",
     "https://www.googleapis.com/auth/userinfo.email",
   ],

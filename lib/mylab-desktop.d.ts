@@ -13,11 +13,14 @@ declare global {
           error?: string | null;
           schedule?: string;
           localIsEmpty?: boolean;
+          folderUrl?: string | null;
+          folderName?: string | null;
           remote?: { modifiedTime?: string; size?: string } | null;
           meta?: {
             lastBackupAt?: string;
             lastRestoreAt?: string;
             lastBackupError?: string | null;
+            folderUrl?: string | null;
           };
         }>;
         backupNow: () => Promise<{ ok?: boolean; error?: string }>;

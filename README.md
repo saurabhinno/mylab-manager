@@ -102,7 +102,10 @@ npm run drive:token
    - `GOOGLE_DRIVE_CLIENT_ID`
    - `GOOGLE_DRIVE_CLIENT_SECRET`
    - `GOOGLE_DRIVE_REFRESH_TOKEN`
-6. Rebuild/release — all installs backup to **that one Gmail** Drive App Data folder
+6. Rebuild/release — all installs backup to a visible **MyLab Backups** folder in that Gmail’s My Drive
+
+Open the folder in Drive after the first backup (or search Drive for “MyLab Backups”).  
+In the app: **Cloud Backup → Open Drive folder**.
 
 Daily work stays offline; Drive is only for backup when online.
 

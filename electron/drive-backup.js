@@ -9,6 +9,7 @@ const dns = require("dns").promises;
 
 const BACKUP_NAME = "mylab-backup.v1.bin";
 const KEY_NAME = "mylab-backup.key.v1";
+const BACKUP_FOLDER_NAME = "MyLab Backups";
 /** Auto-backup interval while MyLab is open and online */
 const BACKUP_INTERVAL_MS = 5 * 60 * 1000;
 const BACKUP_FIRST_DELAY_MS = 20 * 1000;
@@ -177,18 +178,80 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
     return Buffer.concat([decipher.update(data), decipher.final()]);
   }
 
-  async function findFile(drive, name) {
+  async function ensureBackupFolder(drive) {
+    const meta = readMeta();
+    if (meta.folderId) {
+      try {
+        const existing = await drive.files.get({
+          fileId: meta.folderId,
+          fields: "id,name,webViewLink,trashed",
+        });
+        if (existing.data && !existing.data.trashed) {
+          return {
+            id: existing.data.id,
+            webViewLink:
+              existing.data.webViewLink ||
+              `https://drive.google.com/drive/folders/${existing.data.id}`,
+          };
+        }
+      } catch (_) {
+        // Folder missing — create again below.
+      }
+    }
+
+    const listed = await drive.files.list({
+      q: `name='${BACKUP_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false and 'root' in parents`,
+      fields: "files(id,name,webViewLink)",
+      pageSize: 1,
+      spaces: "drive",
+    });
+    let folder = (listed.data.files || [])[0] || null;
+    if (!folder) {
+      const created = await drive.files.create({
+        requestBody: {
+          name: BACKUP_FOLDER_NAME,
+          mimeType: "application/vnd.google-apps.folder",
+          parents: ["root"],
+        },
+        fields: "id,name,webViewLink",
+      });
+      folder = created.data;
+    }
+
+    const webViewLink =
+      folder.webViewLink ||
+      `https://drive.google.com/drive/folders/${folder.id}`;
+    writeMeta({ folderId: folder.id, folderUrl: webViewLink });
+    return { id: folder.id, webViewLink };
+  }
+
+  async function findFileInFolder(drive, folderId, name) {
     const res = await drive.files.list({
-      spaces: "appDataFolder",
-      q: `name='${name}' and trashed=false`,
-      fields: "files(id,name,modifiedTime,size,appProperties)",
+      q: `name='${name}' and '${folderId}' in parents and trashed=false`,
+      fields: "files(id,name,modifiedTime,size,appProperties,webViewLink)",
       pageSize: 5,
+      spaces: "drive",
     });
     return (res.data.files || [])[0] || null;
   }
 
-  async function upsertAppDataFile(drive, name, buffer, appProperties = {}) {
-    const existing = await findFile(drive, name);
+  /** Legacy App Data lookups (old builds) — may fail if token lacks appdata scope. */
+  async function findAppDataFile(drive, name) {
+    try {
+      const res = await drive.files.list({
+        spaces: "appDataFolder",
+        q: `name='${name}' and trashed=false`,
+        fields: "files(id,name,modifiedTime,size,appProperties)",
+        pageSize: 5,
+      });
+      return (res.data.files || [])[0] || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function upsertDriveFile(drive, folderId, name, buffer, appProperties = {}) {
+    const existing = await findFileInFolder(drive, folderId, name);
     const media = {
       mimeType: "application/octet-stream",
       body: Readable.from(buffer),
@@ -204,7 +267,7 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
     const created = await drive.files.create({
       requestBody: {
         name,
-        parents: ["appDataFolder"],
+        parents: [folderId],
         appProperties,
       },
       media,
@@ -213,14 +276,19 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
     return created.data.id;
   }
 
-  async function downloadAppDataFile(drive, name) {
-    const existing = await findFile(drive, name);
+  async function downloadNamedBackup(drive, name) {
+    const folder = await ensureBackupFolder(drive);
+    let existing = await findFileInFolder(drive, folder.id, name);
+    if (!existing) {
+      // Fall back to older App Data backups if still present.
+      existing = await findAppDataFile(drive, name);
+    }
     if (!existing) return null;
     const res = await drive.files.get(
       { fileId: existing.id, alt: "media" },
       { responseType: "arraybuffer" }
     );
-    return { file: existing, buffer: Buffer.from(res.data) };
+    return { file: existing, buffer: Buffer.from(res.data), folder };
   }
 
   function buildBackupJson() {
@@ -270,6 +338,7 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
     backingUp = true;
     try {
       const drive = await driveApi();
+      const folder = await ensureBackupFolder(drive);
       const key = getOrCreateBackupKey();
       const encrypted = encryptBuffer(buildBackupJson(), key);
       const props = {
@@ -278,15 +347,19 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
           ? fs.statSync(dbPath).mtime.toISOString()
           : "",
       };
-      await upsertAppDataFile(drive, KEY_NAME, key);
-      await upsertAppDataFile(drive, BACKUP_NAME, encrypted, props);
+      await upsertDriveFile(drive, folder.id, KEY_NAME, key);
+      await upsertDriveFile(drive, folder.id, BACKUP_NAME, encrypted, props);
       const meta = writeMeta({
         lastBackupAt: new Date().toISOString(),
         lastBackupError: null,
         remoteModifiedTime: props.createdAt,
+        folderId: folder.id,
+        folderUrl: folder.webViewLink,
       });
-      log(`Drive backup uploaded (${Math.round(encrypted.length / 1024)} KB)`);
-      return { ok: true, meta };
+      log(
+        `Drive backup uploaded (${Math.round(encrypted.length / 1024)} KB) → ${folder.webViewLink}`
+      );
+      return { ok: true, meta, folderUrl: folder.webViewLink };
     } catch (err) {
       writeMeta({ lastBackupError: String(err.message || err) });
       log("Drive backup failed", err);
@@ -301,8 +374,8 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
       return { ok: false, error: "Cloud backup token not configured" };
     }
     const drive = await driveApi();
-    const keyFile = await downloadAppDataFile(drive, KEY_NAME);
-    const backupFile = await downloadAppDataFile(drive, BACKUP_NAME);
+    const keyFile = await downloadNamedBackup(drive, KEY_NAME);
+    const backupFile = await downloadNamedBackup(drive, BACKUP_NAME);
     if (!backupFile) return { ok: false, error: "No cloud backup found" };
     if (!keyFile) {
       return { ok: false, error: "Cloud backup key missing" };
@@ -314,6 +387,8 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
     writeMeta({
       lastRestoreAt: new Date().toISOString(),
       remoteModifiedTime: backupFile.file.modifiedTime,
+      folderId: backupFile.folder?.id,
+      folderUrl: backupFile.folder?.webViewLink,
     });
     return { ok: true, payload, remote: backupFile.file };
   }
@@ -333,11 +408,15 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
     let remote = null;
     let error = null;
     let email = null;
+    let folderUrl = meta.folderUrl || null;
     if (configured) {
       try {
         email = await resolveEmail();
         const drive = await driveApi();
-        remote = await findFile(drive, BACKUP_NAME);
+        const folder = await ensureBackupFolder(drive);
+        folderUrl = folder.webViewLink;
+        remote = await findFileInFolder(drive, folder.id, BACKUP_NAME);
+        if (!remote) remote = await findAppDataFile(drive, BACKUP_NAME);
       } catch (err) {
         error = String(err.message || err);
       }
@@ -349,12 +428,15 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
       email,
       error,
       meta,
+      folderUrl,
+      folderName: BACKUP_FOLDER_NAME,
       remote: remote
         ? {
             id: remote.id,
             modifiedTime: remote.modifiedTime,
             size: remote.size,
             appProperties: remote.appProperties || {},
+            webViewLink: remote.webViewLink || null,
           }
         : null,
       localDbExists: fs.existsSync(dbPath),

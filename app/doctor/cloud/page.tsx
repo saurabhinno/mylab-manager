@@ -30,6 +30,8 @@ type DriveStatus = {
   email?: string | null;
   error?: string | null;
   schedule?: string;
+  folderUrl?: string | null;
+  folderName?: string | null;
   localIsEmpty?: boolean;
   remote?: {
     modifiedTime?: string;
@@ -39,6 +41,7 @@ type DriveStatus = {
     lastBackupAt?: string;
     lastRestoreAt?: string;
     lastBackupError?: string | null;
+    folderUrl?: string | null;
   };
 };
 
@@ -104,7 +107,8 @@ export default function CloudBackupPage() {
           </Typography>
         </Stack>
         <Typography color="text.secondary" sx={{ mb: 3 }}>
-          Lab data stays on this computer. Encrypted backups go to your configured Google account every 5 minutes when online.
+          Lab data stays on this computer. Encrypted backups go to a visible{" "}
+          <strong>MyLab Backups</strong> folder in Google Drive every 5 minutes when online.
         </Typography>
 
         {alert && (
@@ -157,6 +161,20 @@ node scripts/google-drive-get-token.js`}
                 <Typography variant="body2" color="text.secondary">
                   Cloud copy: {status?.remote?.modifiedTime ? fmt(status.remote.modifiedTime) : "None yet"}
                 </Typography>
+                {(status?.folderUrl || status?.meta?.folderUrl) && (
+                  <Typography variant="body2">
+                    Drive folder:{" "}
+                    <Box
+                      component="a"
+                      href={status.folderUrl || status.meta?.folderUrl || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      sx={{ color: "primary.main" }}
+                    >
+                      {status.folderName || "MyLab Backups"}
+                    </Box>
+                  </Typography>
+                )}
                 {status?.meta?.lastBackupError && (
                   <Alert severity="error">Last backup error: {status.meta.lastBackupError}</Alert>
                 )}
@@ -185,6 +203,16 @@ node scripts/google-drive-get-token.js`}
                   >
                     Restore
                   </Button>
+                  {(status?.folderUrl || status?.meta?.folderUrl) && (
+                    <Button
+                      variant="text"
+                      href={status.folderUrl || status.meta?.folderUrl || undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open Drive folder
+                    </Button>
+                  )}
                 </Stack>
               </Stack>
             </CardContent>
