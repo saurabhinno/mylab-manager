@@ -203,16 +203,15 @@ node scripts/google-drive-get-token.js`}
                   >
                     Restore
                   </Button>
-                  {(status?.folderUrl || status?.meta?.folderUrl) && (
-                    <Button
-                      variant="text"
-                      href={status.folderUrl || status.meta?.folderUrl || undefined}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Open Drive folder
-                    </Button>
-                  )}
+                  {(() => {
+                    const folderHref = status?.folderUrl || status?.meta?.folderUrl || "";
+                    if (!folderHref) return null;
+                    return (
+                      <Button variant="text" href={folderHref} target="_blank" rel="noreferrer">
+                        Open Drive folder
+                      </Button>
+                    );
+                  })()}
                 </Stack>
               </Stack>
             </CardContent>
