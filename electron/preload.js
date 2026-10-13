@@ -7,4 +7,8 @@ contextBridge.exposeInMainWorld("mylab", {
     backupNow: () => ipcRenderer.invoke("drive:backupNow"),
     restore: () => ipcRenderer.invoke("drive:restore"),
   },
+  updates: {
+    check: () => ipcRenderer.invoke("updates:check"),
+    getVersion: () => ipcRenderer.invoke("updates:getVersion"),
+  },
 });

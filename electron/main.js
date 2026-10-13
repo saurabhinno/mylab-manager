@@ -3,7 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const http = require("http");
 const { spawn } = require("child_process");
-const { setupAutoUpdater } = require("./updater");
+const { setupAutoUpdater, checkForUpdatesManual } = require("./updater");
 const { createDriveBackup } = require("./drive-backup");
 
 const API_PORT = process.env.MYLAB_API_PORT || "47821";
@@ -260,6 +260,9 @@ function initDrive() {
   });
 
   drive.startSchedule();
+
+  ipcMain.handle("updates:check", async () => checkForUpdatesManual());
+  ipcMain.handle("updates:getVersion", async () => app.getVersion());
 }
 
 async function maybeAutoRestoreFromDrive() {

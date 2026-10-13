@@ -12,10 +12,12 @@ import {
   DashboardOutlined, ScienceOutlined, ArticleOutlined,
   PeopleOutlined, LogoutOutlined, LocalHospitalOutlined, PersonOutlined,
   SettingsOutlined, MenuOutlined, CloseOutlined, ChevronLeftOutlined, ChevronRightOutlined,
-  BiotechOutlined, SwapHorizOutlined, CloudOutlined,
+  BiotechOutlined, SwapHorizOutlined, CloudOutlined, SystemUpdateAltOutlined,
+  LockOutlined,
 } from '@mui/icons-material';
 import { apiRequest } from '@/lib/api';
 import LangSwitcher from '@/components/LangSwitcher';
+import ChangePasswordDialog from '@/components/ChangePasswordDialog';
 import { useI18n } from '@/lib/i18n';
 
 const DRAWER_WIDTH = 240;
@@ -33,7 +35,10 @@ export default function Sidebar({ role, email }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [viewAs, setViewAs] = useState<'doctor' | 'compounder'>(role);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
   const { t } = useI18n();
+  const isDesktop = typeof window !== 'undefined' && !!(window as any).mylab?.updates;
 
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed');
@@ -84,6 +89,17 @@ export default function Sidebar({ role, email }: SidebarProps) {
     setAnchorEl(null);
     await apiRequest('/api/auth/logout', { method: 'POST' });
     router.push('/login');
+  }
+
+  async function handleCheckUpdate() {
+    setAnchorEl(null);
+    if (!(window as any).mylab?.updates?.check) return;
+    setCheckingUpdate(true);
+    try {
+      await (window as any).mylab.updates.check();
+    } finally {
+      setCheckingUpdate(false);
+    }
   }
 
   const drawerContent = (
@@ -208,11 +224,23 @@ export default function Sidebar({ role, email }: SidebarProps) {
       </Box>
 
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)} anchorOrigin={{ vertical: 'top', horizontal: 'right' }} transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}>
+        <MenuItem onClick={() => { setAnchorEl(null); setPwOpen(true); }} sx={{ gap: 1.5, fontSize: 14 }}>
+          <LockOutlined sx={{ fontSize: 18 }} />
+          {t('password.change_title')}
+        </MenuItem>
+        {isDesktop && (
+          <MenuItem onClick={handleCheckUpdate} disabled={checkingUpdate} sx={{ gap: 1.5, fontSize: 14 }}>
+            <SystemUpdateAltOutlined sx={{ fontSize: 18 }} />
+            {checkingUpdate ? t('nav.checking_update') : t('nav.check_update')}
+          </MenuItem>
+        )}
         <MenuItem onClick={handleLogout} sx={{ gap: 1.5, fontSize: 14 }}>
           <LogoutOutlined sx={{ fontSize: 18 }} />
           {t('common.logout')}
         </MenuItem>
       </Menu>
+
+      <ChangePasswordDialog open={pwOpen} onClose={() => setPwOpen(false)} />
     </Box>
   );
 

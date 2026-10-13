@@ -30,20 +30,40 @@ router.post("/login", async (req: Request, res: Response) => {
 });
 
 router.post("/register", async (req: Request, res: Response) => {
-  const { email, password, role } = req.body;
-  
+  const { email, password, role, name } = req.body;
+
   if (!email || !password || !role) {
     return res.status(400).json({ error: "Email, password, and role are required." });
   }
+  if (role !== "doctor" && role !== "compounder") {
+    return res.status(400).json({ error: "Role must be doctor or compounder." });
+  }
+  if (String(password).length < 4) {
+    return res.status(400).json({ error: "Password must be at least 4 characters." });
+  }
 
   try {
+    // Only a logged-in doctor can create staff accounts
+    const actorId = getUserIdFromCookie(req.cookies);
+    if (!actorId) return res.status(401).json({ error: "Not authenticated" });
+    const actor = await User.findByPk(actorId);
+    if (!actor || actor.role !== "doctor") {
+      return res.status(403).json({ error: "Only doctors can add staff." });
+    }
+
     const existing = await User.findOne({ where: { email } });
     if (existing) {
       return res.status(400).json({ error: "Email already registered." });
     }
 
     const password_hash = await hashPassword(password);
-    await User.create({ email, password_hash, role, signature_image: null });
+    await User.create({
+      email,
+      password_hash,
+      role,
+      name: name || null,
+      signature_image: null,
+    });
     return res.json({ success: true });
   } catch (error) {
     console.error(error);
@@ -129,9 +149,47 @@ router.get("/profile/:id", async (req: Request, res: Response) => {
   }
 });
 
-// Reset password (admin resets staff password)
+// Logged-in user changes their own password
+router.put("/me/password", async (req: Request, res: Response) => {
+  try {
+    const userId = getUserIdFromCookie(req.cookies);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Current and new password are required." });
+    }
+    if (String(newPassword).length < 4) {
+      return res.status(400).json({ error: "New password must be at least 4 characters." });
+    }
+
+    const user = await User.findByPk(userId);
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    const valid = await verifyPassword(currentPassword, user.password_hash);
+    if (!valid) {
+      return res.status(400).json({ error: "Current password is incorrect." });
+    }
+
+    user.password_hash = await hashPassword(newPassword);
+    await user.save();
+    return res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Doctor resets any user's password (forgot-password flow)
 router.put("/users/:id/password", async (req: Request, res: Response) => {
   try {
+    const actorId = getUserIdFromCookie(req.cookies);
+    if (!actorId) return res.status(401).json({ error: "Not authenticated" });
+    const actor = await User.findByPk(actorId);
+    if (!actor || actor.role !== "doctor") {
+      return res.status(403).json({ error: "Only doctors can reset passwords." });
+    }
+
     const { id } = req.params;
     const { password } = req.body;
     if (!password || password.length < 4) {
@@ -150,15 +208,28 @@ router.put("/users/:id/password", async (req: Request, res: Response) => {
   }
 });
 
-// Delete user (staff)
+// Delete user (staff) — doctors can remove compounders or other doctors (not themselves / last doctor)
 router.delete("/users/:id", async (req: Request, res: Response) => {
   try {
+    const actorId = getUserIdFromCookie(req.cookies);
+    if (!actorId) return res.status(401).json({ error: "Not authenticated" });
+    const actor = await User.findByPk(actorId);
+    if (!actor || actor.role !== "doctor") {
+      return res.status(403).json({ error: "Only doctors can delete staff." });
+    }
+
     const user = await User.findByPk(req.params.id);
     if (!user) {
       return res.status(404).json({ error: "User not found." });
     }
+    if (user.id === actor.id) {
+      return res.status(400).json({ error: "You cannot delete your own account." });
+    }
     if (user.role === "doctor") {
-      return res.status(400).json({ error: "Cannot delete doctor account." });
+      const doctorCount = await User.count({ where: { role: "doctor" } });
+      if (doctorCount <= 1) {
+        return res.status(400).json({ error: "Cannot delete the last doctor account." });
+      }
     }
     await user.destroy();
     return res.json({ success: true });

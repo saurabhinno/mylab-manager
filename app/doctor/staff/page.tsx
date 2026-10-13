@@ -6,6 +6,7 @@ import {
   Alert, InputAdornment, IconButton, Grid, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Chip, Tooltip,
   Dialog, DialogTitle, DialogContent, DialogActions,
+  FormControl, InputLabel, Select, MenuItem,
 } from "@mui/material";
 import {
   PersonAddOutlined, EmailOutlined, LockOutlined,
@@ -15,6 +16,7 @@ import {
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { useUser } from "@/lib/useUser";
 
 interface StaffUser {
   id: number;
@@ -26,13 +28,15 @@ interface StaffUser {
 
 export default function StaffPage() {
   const { t } = useI18n();
+  const { user: me } = useUser();
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"doctor" | "compounder">("compounder");
   const [showPw, setShowPw] = useState(false);
   const [alert, setAlert] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const [users, setUsers] = useState<StaffUser[]>([]);
 
-  // Reset password state
   const [resetUserId, setResetUserId] = useState<number | null>(null);
   const [resetPassword, setResetPassword] = useState("");
   const [showResetPw, setShowResetPw] = useState(false);
@@ -46,12 +50,15 @@ export default function StaffPage() {
     e.preventDefault();
     const res = await apiRequest("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, role: "compounder" }),
+      body: JSON.stringify({ email, password, role, name: name || undefined }),
     });
     const data = await res.json();
     if (res.ok) {
-      setAlert({ type: "success", msg: `Compounder account created for ${email}` });
-      setEmail(""); setPassword("");
+      setAlert({ type: "success", msg: `${role === "doctor" ? "Doctor" : "Compounder"} account created for ${email}` });
+      setEmail("");
+      setName("");
+      setPassword("");
+      setRole("compounder");
       loadUsers();
     } else {
       setAlert({ type: "error", msg: data.error || "Failed to create account." });
@@ -60,7 +67,7 @@ export default function StaffPage() {
   }
 
   async function handleDelete(id: number, userEmail: string) {
-    if (!confirm(`Delete staff account "${userEmail}"?`)) return;
+    if (!confirm(`Delete account "${userEmail}"?`)) return;
     const res = await apiRequest(`/api/auth/users/${id}`, { method: "DELETE" });
     if (res.ok) {
       setAlert({ type: "success", msg: `Deleted ${userEmail}` });
@@ -92,7 +99,7 @@ export default function StaffPage() {
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar role="doctor" email="doctor@mylab.com" />
+      <Sidebar role="doctor" email={me?.email} />
       <Box sx={{ flexGrow: 1, p: 3, overflow: "auto" }} id="main-content" tabIndex={-1}>
         <Box sx={{ mb: 3 }}>
           <Typography variant="h5">{t("staff.title")}</Typography>
@@ -102,7 +109,6 @@ export default function StaffPage() {
         {alert && <Alert severity={alert.type} sx={{ mb: 2, borderRadius: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
 
         <Grid container spacing={3}>
-          {/* Add Staff Form */}
           <Grid item xs={12} md={4}>
             <Card>
               <CardContent>
@@ -111,6 +117,24 @@ export default function StaffPage() {
                   <Typography variant="h6">{t("staff.add")}</Typography>
                 </Box>
                 <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <FormControl fullWidth>
+                    <InputLabel id="staff-role-label">{t("staff.role_label")}</InputLabel>
+                    <Select
+                      labelId="staff-role-label"
+                      label={t("staff.role_label")}
+                      value={role}
+                      onChange={(e) => setRole(e.target.value as "doctor" | "compounder")}
+                    >
+                      <MenuItem value="compounder">{t("staff.role_compounder")}</MenuItem>
+                      <MenuItem value="doctor">{t("staff.role_doctor")}</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField
+                    label={t("staff.name_label")}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    fullWidth
+                  />
                   <TextField
                     label={t("staff.email_label")}
                     type="email"
@@ -125,6 +149,7 @@ export default function StaffPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required fullWidth
+                    inputProps={{ minLength: 4 }}
                     InputProps={{
                       startAdornment: <InputAdornment position="start"><LockOutlined sx={{ fontSize: 18, color: "text.secondary" }} /></InputAdornment>,
                       endAdornment: (
@@ -144,7 +169,6 @@ export default function StaffPage() {
             </Card>
           </Grid>
 
-          {/* Staff List */}
           <Grid item xs={12} md={8}>
             <Card>
               <CardContent sx={{ pb: 0 }}>
@@ -162,37 +186,40 @@ export default function StaffPage() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {users.map((u) => (
-                      <TableRow key={u.id} hover sx={{ "& td": { fontSize: 13 } }}>
-                        <TableCell sx={{ fontWeight: 500 }}>{u.email}</TableCell>
-                        <TableCell>{u.name || <Typography variant="caption" color="text.disabled">—</Typography>}</TableCell>
-                        <TableCell>
-                          <Chip
-                            label={u.role}
-                            size="small"
-                            color={u.role === "doctor" ? "primary" : "default"}
-                            sx={{ fontSize: 11, height: 22 }}
-                          />
-                        </TableCell>
-                        <TableCell>{new Date(u.createdAt).toLocaleDateString("en-IN")}</TableCell>
-                        <TableCell align="center">
-                          {u.role !== "doctor" && (
+                    {users.map((u) => {
+                      const isSelf = me?.id === u.id;
+                      return (
+                        <TableRow key={u.id} hover sx={{ "& td": { fontSize: 13 } }}>
+                          <TableCell sx={{ fontWeight: 500 }}>{u.email}</TableCell>
+                          <TableCell>{u.name || <Typography variant="caption" color="text.disabled">—</Typography>}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={u.role}
+                              size="small"
+                              color={u.role === "doctor" ? "primary" : "default"}
+                              sx={{ fontSize: 11, height: 22 }}
+                            />
+                          </TableCell>
+                          <TableCell>{new Date(u.createdAt).toLocaleDateString("en-IN")}</TableCell>
+                          <TableCell align="center">
                             <Box sx={{ display: "flex", gap: 0.5, justifyContent: "center" }}>
                               <Tooltip title={t("staff.reset_password")}>
                                 <IconButton size="small" color="primary" onClick={() => { setResetUserId(u.id); setResetPassword(""); }}>
                                   <LockResetOutlined sx={{ fontSize: 16 }} />
                                 </IconButton>
                               </Tooltip>
-                              <Tooltip title={t("common.delete")}>
-                                <IconButton size="small" color="error" onClick={() => handleDelete(u.id, u.email)}>
-                                  <DeleteOutlined sx={{ fontSize: 16 }} />
-                                </IconButton>
-                              </Tooltip>
+                              {!isSelf && (
+                                <Tooltip title={t("common.delete")}>
+                                  <IconButton size="small" color="error" onClick={() => handleDelete(u.id, u.email)}>
+                                    <DeleteOutlined sx={{ fontSize: 16 }} />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
                             </Box>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                     {users.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} align="center" sx={{ py: 4, color: "text.secondary" }}>
@@ -207,7 +234,6 @@ export default function StaffPage() {
           </Grid>
         </Grid>
 
-        {/* Reset Password Dialog */}
         <Dialog open={resetUserId !== null} onClose={() => setResetUserId(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
           <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>

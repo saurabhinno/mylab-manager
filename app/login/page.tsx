@@ -124,9 +124,6 @@ export default function LoginPage() {
             </Button>
           </Box>
 
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 3, textAlign: "center" }}>
-            {t("login.default_hint")}
-          </Typography>
         </Paper>
       </Box>
     </Box>

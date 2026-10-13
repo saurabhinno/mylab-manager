@@ -79,7 +79,18 @@ const translations: Record<string, Record<Lang, string>> = {
 
   // Login extras
   "login.branding_text": { en: "Streamlined blood test reporting for doctors and lab staff. Fast, accurate, and paperless.", hi: "डॉक्टरों और लैब स्टाफ के लिए सुव्यवस्थित ब्लड टेस्ट रिपोर्टिंग। तेज़, सटीक, और पेपरलेस।", hinglish: "Doctors aur lab staff ke liye streamlined blood test reporting. Fast, accurate, aur paperless." },
-  "login.default_hint": { en: "Default doctor: doctor@mylab.com / password", hi: "डिफ़ॉल्ट डॉक्टर: doctor@mylab.com / password", hinglish: "Default doctor: doctor@mylab.com / password" },
+  "login.default_hint": { en: "", hi: "", hinglish: "" },
+  "nav.check_update": { en: "Check for updates", hi: "अपडेट जांचें", hinglish: "Update check karo" },
+  "nav.checking_update": { en: "Checking…", hi: "जांच हो रही है…", hinglish: "Checking…" },
+  "password.change_title": { en: "Change password", hi: "पासवर्ड बदलें", hinglish: "Password badlo" },
+  "password.current": { en: "Current password", hi: "वर्तमान पासवर्ड", hinglish: "Current password" },
+  "password.new": { en: "New password", hi: "नया पासवर्ड", hinglish: "Naya password" },
+  "password.confirm": { en: "Confirm new password", hi: "नया पासवर्ड पुष्टि करें", hinglish: "Confirm naya password" },
+  "password.save": { en: "Update password", hi: "पासवर्ड अपडेट करें", hinglish: "Password update karo" },
+  "password.too_short": { en: "Password must be at least 4 characters.", hi: "पासवर्ड कम से कम 4 अक्षर का होना चाहिए।", hinglish: "Password kam se kam 4 characters ka hona chahiye." },
+  "password.mismatch": { en: "New passwords do not match.", hi: "नए पासवर्ड मेल नहीं खाते।", hinglish: "Naye passwords match nahi karte." },
+  "password.change_success": { en: "Password updated successfully.", hi: "पासवर्ड सफलतापूर्वक अपडेट हुआ।", hinglish: "Password update ho gaya." },
+  "password.change_failed": { en: "Failed to change password.", hi: "पासवर्ड बदलने में विफल।", hinglish: "Password change fail ho gaya." },
 
   // Dashboard extras
   "dashboard.no_reports": { en: "No reports yet", hi: "अभी कोई रिपोर्ट नहीं", hinglish: "Abhi koi report nahi" },
@@ -152,7 +163,11 @@ const translations: Record<string, Record<Lang, string>> = {
   // Staff
   "staff.title": { en: "Staff Management", hi: "स्टाफ प्रबंधन", hinglish: "Staff Management" },
   "staff.subtitle": { en: "Manage lab staff accounts", hi: "लैब स्टाफ अकाउंट प्रबंधित करें", hinglish: "Lab staff accounts manage karo" },
-  "staff.add": { en: "Add Compounder", hi: "कम्पाउंडर जोड़ें", hinglish: "Compounder Add Karo" },
+  "staff.add": { en: "Add Staff", hi: "स्टाफ जोड़ें", hinglish: "Staff Add Karo" },
+  "staff.role_label": { en: "Role", hi: "भूमिका", hinglish: "Role" },
+  "staff.role_doctor": { en: "Doctor", hi: "डॉक्टर", hinglish: "Doctor" },
+  "staff.role_compounder": { en: "Compounder", hi: "कम्पाउंडर", hinglish: "Compounder" },
+  "staff.name_label": { en: "Name (optional)", hi: "नाम (वैकल्पिक)", hinglish: "Naam (optional)" },
   "staff.email_label": { en: "Email address", hi: "ईमेल पता", hinglish: "Email address" },
   "staff.password_label": { en: "Password", hi: "पासवर्ड", hinglish: "Password" },
   "staff.create_account": { en: "Create Account", hi: "अकाउंट बनाएं", hinglish: "Account Banao" },

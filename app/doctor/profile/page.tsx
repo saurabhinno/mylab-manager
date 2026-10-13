@@ -11,9 +11,11 @@ import {
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { useUser } from "@/lib/useUser";
 
 export default function ProfilePage() {
   const { t } = useI18n();
+  const { user: me, loading: meLoading } = useUser();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [signaturePath, setSignaturePath] = useState<string | null>(null);
@@ -24,10 +26,13 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Using user id 1 (doctor) — in production this would come from session
-  const userId = 1;
+  const userId = me?.id;
 
   useEffect(() => {
+    if (!userId) {
+      if (!meLoading) setLoading(false);
+      return;
+    }
     apiRequest(`/api/auth/profile/${userId}`)
       .then((r) => r.json())
       .then((d) => {
@@ -42,7 +47,7 @@ export default function ProfilePage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [userId, meLoading]);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -57,6 +62,7 @@ export default function ProfilePage() {
       const base64 = reader.result as string;
       setSignaturePreview(base64);
       setSignatureFile(base64);
+      if (!userId) return;
       // Auto-save signature immediately
       setSaving(true);
       const res = await apiRequest(`/api/auth/profile/${userId}`, {
@@ -82,6 +88,7 @@ export default function ProfilePage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (!userId) return;
     setSaving(true);
     const body: any = { name };
     if (signatureFile) {
@@ -244,6 +251,7 @@ export default function ProfilePage() {
                         setSignaturePreview(null);
                         setSignatureFile(null);
                         setSaving(true);
+                        if (!userId) return;
                         const res = await apiRequest(`/api/auth/profile/${userId}`, {
                           method: "PUT",
                           body: JSON.stringify({ name, signature_image: null }),
