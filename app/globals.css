@@ -9,14 +9,36 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Contained buttons rendered as <a href> must stay white (browser link hover turns them blue) */
-a.MuiButton-contained,
-a.MuiButton-contained:link,
-a.MuiButton-contained:visited,
-a.MuiButton-contained:hover,
-a.MuiButton-contained:active,
-a.MuiButton-contained:focus {
+/*
+ * Link-styled MUI buttons: keep readable contrast.
+ * - Filled colored buttons → white label (also blocks browser blue link hover)
+ * - Outlined / text → brand blue label (not white — white would disappear on light UI)
+ */
+a.MuiButton-containedPrimary,
+a.MuiButton-containedPrimary:link,
+a.MuiButton-containedPrimary:visited,
+a.MuiButton-containedPrimary:hover,
+a.MuiButton-containedPrimary:active,
+a.MuiButton-containedSecondary,
+a.MuiButton-containedSecondary:hover,
+a.MuiButton-containedSuccess,
+a.MuiButton-containedSuccess:hover,
+a.MuiButton-containedError,
+a.MuiButton-containedError:hover,
+a.MuiButton-containedWarning,
+a.MuiButton-containedWarning:hover {
   color: #ffffff !important;
+}
+
+a.MuiButton-outlinedPrimary,
+a.MuiButton-outlinedPrimary:link,
+a.MuiButton-outlinedPrimary:visited,
+a.MuiButton-outlinedPrimary:hover,
+a.MuiButton-textPrimary,
+a.MuiButton-textPrimary:link,
+a.MuiButton-textPrimary:visited,
+a.MuiButton-textPrimary:hover {
+  color: #0f4c81 !important;
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }

@@ -6,8 +6,11 @@ import { I18nProvider } from '@/lib/i18n';
 
 const theme = createTheme({
   palette: {
-    primary: { main: '#0f4c81' },
-    secondary: { main: '#00897b' },
+    primary: { main: '#0f4c81', contrastText: '#ffffff' },
+    secondary: { main: '#00897b', contrastText: '#ffffff' },
+    success: { main: '#2e7d32', contrastText: '#ffffff' },
+    error: { main: '#d32f2f', contrastText: '#ffffff' },
+    warning: { main: '#ed6c02', contrastText: '#ffffff' },
     background: { default: '#f0f4f8', paper: '#ffffff' },
     text: { primary: '#1a2332', secondary: '#4a5568' },
   },
@@ -27,12 +30,7 @@ const theme = createTheme({
           borderRadius: 8,
           '&:focus-visible': { outline: '2px solid #0f4c81', outlineOffset: 2 },
         },
-        contained: {
-          color: '#ffffff',
-          '&:hover': { color: '#ffffff' },
-          '&:visited': { color: '#ffffff' },
-          '&:active': { color: '#ffffff' },
-        },
+        // Filled primary: white label on blue (readable + stays white on hover)
         containedPrimary: {
           color: '#ffffff',
           background: 'linear-gradient(135deg, #0f4c81 0%, #1565c0 100%)',
@@ -52,6 +50,35 @@ const theme = createTheme({
         containedError: {
           color: '#ffffff',
           '&:hover': { color: '#ffffff' },
+        },
+        containedWarning: {
+          color: '#ffffff',
+          '&:hover': { color: '#ffffff' },
+        },
+        // Outlined / text: dark primary label (not white — would vanish on light bg)
+        outlinedPrimary: {
+          color: '#0f4c81',
+          borderColor: '#0f4c81',
+          '&:hover': {
+            color: '#0f4c81',
+            borderColor: '#0d3d6b',
+            backgroundColor: 'rgba(15, 76, 129, 0.06)',
+          },
+        },
+        textPrimary: {
+          color: '#0f4c81',
+          '&:hover': {
+            color: '#0f4c81',
+            backgroundColor: 'rgba(15, 76, 129, 0.06)',
+          },
+        },
+        outlinedSecondary: {
+          color: '#00897b',
+          '&:hover': { color: '#00897b' },
+        },
+        textSecondary: {
+          color: '#00897b',
+          '&:hover': { color: '#00897b' },
         },
       },
     },
