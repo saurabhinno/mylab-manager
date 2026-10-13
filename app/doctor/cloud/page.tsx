@@ -104,7 +104,7 @@ export default function CloudBackupPage() {
           </Typography>
         </Stack>
         <Typography color="text.secondary" sx={{ mb: 3 }}>
-          Lab data stays on this computer. Encrypted backups go to your configured Google account twice a day when online.
+          Lab data stays on this computer. Encrypted backups go to your configured Google account every 5 minutes when online.
         </Typography>
 
         {alert && (

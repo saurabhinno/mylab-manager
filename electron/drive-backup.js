@@ -5,8 +5,13 @@ const { Readable } = require("stream");
 const { google } = require("googleapis");
 const { safeStorage } = require("electron");
 
+const dns = require("dns").promises;
+
 const BACKUP_NAME = "mylab-backup.v1.bin";
 const KEY_NAME = "mylab-backup.key.v1";
+/** Auto-backup interval while MyLab is open and online */
+const BACKUP_INTERVAL_MS = 5 * 60 * 1000;
+const BACKUP_FIRST_DELAY_MS = 20 * 1000;
 
 function loadDriveConfig(userDataPath) {
   const candidates = [
@@ -60,9 +65,24 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
   const metaPath = path.join(userDataPath, "drive-meta.json");
   const keyPath = path.join(userDataPath, "drive-backup.key");
 
-  let scheduledTimer = null;
+  let scheduledInterval = null;
+  let scheduledFirstTimer = null;
   let backingUp = false;
   let cachedEmail = null;
+
+  async function isOnline() {
+    try {
+      await dns.resolve("www.googleapis.com");
+      return true;
+    } catch {
+      try {
+        await dns.resolve("dns.google");
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  }
 
   function readMeta() {
     if (!fs.existsSync(metaPath)) return {};
@@ -339,30 +359,8 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
         : null,
       localDbExists: fs.existsSync(dbPath),
       localIsEmpty: localIsEmpty(),
-      schedule: "Twice daily at 10:00 and 22:00 (while MyLab is open)",
+      schedule: "Every 5 minutes while online (MyLab open)",
     };
-  }
-
-  function msUntilNextSlot() {
-    const now = new Date();
-    const slots = [10, 22];
-    for (let dayOffset = 0; dayOffset <= 1; dayOffset++) {
-      for (const hour of slots) {
-        const t = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() + dayOffset,
-          hour,
-          0,
-          0,
-          0
-        );
-        if (t.getTime() > now.getTime() + 5000) {
-          return t.getTime() - now.getTime();
-        }
-      }
-    }
-    return 12 * 60 * 60 * 1000;
   }
 
   function startSchedule(onRan) {
@@ -371,22 +369,36 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
       log("Drive backup schedule skipped (token not configured)");
       return;
     }
+
     const tick = async () => {
+      if (!(await isOnline())) {
+        log("Scheduled Drive backup skipped (offline)");
+        return;
+      }
       log("Scheduled Drive backup starting…");
       const result = await uploadBackup();
       if (onRan) onRan(result);
-      scheduledTimer = setTimeout(tick, msUntilNextSlot());
     };
-    scheduledTimer = setTimeout(tick, msUntilNextSlot());
+
+    // First attempt shortly after launch, then every 5 minutes.
+    scheduledFirstTimer = setTimeout(() => {
+      tick();
+      scheduledInterval = setInterval(tick, BACKUP_INTERVAL_MS);
+    }, BACKUP_FIRST_DELAY_MS);
+
     log(
-      `Drive backup schedule armed (next in ${Math.round(msUntilNextSlot() / 60000)} min)`
+      `Drive backup schedule armed (every ${BACKUP_INTERVAL_MS / 60000} min when online; first in ${BACKUP_FIRST_DELAY_MS / 1000}s)`
     );
   }
 
   function stopSchedule() {
-    if (scheduledTimer) {
-      clearTimeout(scheduledTimer);
-      scheduledTimer = null;
+    if (scheduledFirstTimer) {
+      clearTimeout(scheduledFirstTimer);
+      scheduledFirstTimer = null;
+    }
+    if (scheduledInterval) {
+      clearInterval(scheduledInterval);
+      scheduledInterval = null;
     }
   }
 

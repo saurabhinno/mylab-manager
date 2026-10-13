@@ -82,7 +82,7 @@ For one lab / one Gmail: generate a **refresh token once**, bake it into the app
 
 After login → **Cloud Backup**:
 - **Backup now** / **Restore**
-- Auto backup at **10:00 and 22:00** while MyLab is open
+- Auto backup **every 5 minutes** while MyLab is open and online
 - Empty PC on first launch can auto-offer restore from that same Drive
 
 **One-time setup (you):**
