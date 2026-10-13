@@ -8,11 +8,13 @@ const { safeStorage } = require("electron");
 const BACKUP_NAME = "mylab-backup.v1.bin";
 const KEY_NAME = "mylab-backup.key.v1";
 
-function loadDriveConfig() {
+function loadDriveConfig(userDataPath) {
   const candidates = [
+    // Allow drop-in config on a machine without rebuilding
+    userDataPath ? path.join(userDataPath, "drive-config.json") : null,
     path.join(__dirname, "drive-config.json"),
     path.join(__dirname, "update-config.json"),
-  ];
+  ].filter(Boolean);
   for (const p of candidates) {
     try {
       if (!fs.existsSync(p)) continue;
@@ -20,7 +22,7 @@ function loadDriveConfig() {
       const clientId = j.googleClientId || j.clientId || "";
       const clientSecret = j.googleClientSecret || j.clientSecret || "";
       const refreshToken = j.googleRefreshToken || j.refreshToken || "";
-      if (clientId || refreshToken) {
+      if (clientId && refreshToken) {
         return { clientId, clientSecret, refreshToken };
       }
     } catch (_) {}
@@ -78,12 +80,12 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
   }
 
   function isConfigured() {
-    const cfg = loadDriveConfig();
+    const cfg = loadDriveConfig(userDataPath);
     return !!(cfg.clientId && cfg.refreshToken);
   }
 
   function oauth2Client() {
-    const cfg = loadDriveConfig();
+    const cfg = loadDriveConfig(userDataPath);
     if (!cfg.clientId || !cfg.refreshToken) {
       throw new Error(
         "Cloud backup is not configured. Set GOOGLE_DRIVE_CLIENT_ID and GOOGLE_DRIVE_REFRESH_TOKEN (run: node scripts/google-drive-get-token.js)."
