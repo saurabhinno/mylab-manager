@@ -27,9 +27,31 @@ const theme = createTheme({
           borderRadius: 8,
           '&:focus-visible': { outline: '2px solid #0f4c81', outlineOffset: 2 },
         },
+        contained: {
+          color: '#ffffff',
+          '&:hover': { color: '#ffffff' },
+          '&:visited': { color: '#ffffff' },
+          '&:active': { color: '#ffffff' },
+        },
         containedPrimary: {
+          color: '#ffffff',
           background: 'linear-gradient(135deg, #0f4c81 0%, #1565c0 100%)',
-          '&:hover': { background: 'linear-gradient(135deg, #0d3d6b 0%, #0f4c81 100%)' },
+          '&:hover': {
+            color: '#ffffff',
+            background: 'linear-gradient(135deg, #0d3d6b 0%, #0f4c81 100%)',
+          },
+        },
+        containedSecondary: {
+          color: '#ffffff',
+          '&:hover': { color: '#ffffff' },
+        },
+        containedSuccess: {
+          color: '#ffffff',
+          '&:hover': { color: '#ffffff' },
+        },
+        containedError: {
+          color: '#ffffff',
+          '&:hover': { color: '#ffffff' },
         },
       },
     },

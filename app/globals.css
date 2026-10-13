@@ -9,6 +9,16 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Contained buttons rendered as <a href> must stay white (browser link hover turns them blue) */
+a.MuiButton-contained,
+a.MuiButton-contained:link,
+a.MuiButton-contained:visited,
+a.MuiButton-contained:hover,
+a.MuiButton-contained:active,
+a.MuiButton-contained:focus {
+  color: #ffffff !important;
+}
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
