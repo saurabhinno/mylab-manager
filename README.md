@@ -2,7 +2,7 @@
 
 This monorepo contains two applications:
 
-1. **MyLab** — A blood test diagnostics portal for labs
+1. **MyLab** — A blood test diagnostics portal for labs (desktop + optional web)
 2. **Railway Manager** — A Railway infrastructure management dashboard
 
 ---
@@ -11,10 +11,7 @@ This monorepo contains two applications:
 
 A full-stack lab reporting platform for doctors and lab technicians (compounders).
 
-### Live URLs
-
-- **Frontend**: https://mylab-app-production.up.railway.app
-- **API**: https://mylab-api-production.up.railway.app
+**Desktop mode (recommended):** runs as a local Windows/macOS app. All data stays on the machine (SQLite + local files). No cloud database required.
 
 ### Default Login
 
@@ -50,38 +47,96 @@ A full-stack lab reporting platform for doctors and lab technicians (compounders
 
 - **Frontend**: Next.js 14 (App Router), MUI v5
 - **API**: Express.js, Sequelize ORM
-- **Database**: MySQL 8.0
+- **Database (desktop)**: SQLite file on disk
+- **Shell**: Electron (Windows + macOS)
 - **Auth**: Cookie-based sessions with bcrypt
-- **Deployment**: Railway (Docker)
 
-### Local Development
+### Desktop app (local-only data)
 
 ```bash
-# Start all services with Docker
-docker compose up --build
+# One-time setup
+npm install
+cd express-api && npm install && cd ..
 
+# Run in development (API + Next + Electron window)
+npm run desktop:dev
+```
+
+In development, SQLite lives at `./data/mylab.sqlite`.
+
+In a packaged app, data is stored under the OS app-data folder (local only):
+
+- **macOS**: `~/Library/Application Support/MyLab/`
+- **Windows**: `%APPDATA%\MyLab\`
+
+Files:
+
+- `mylab.sqlite` — patients, reports, tests, settings, users
+- `uploads/` — any local upload files
+
+#### Build installers
+
+```bash
+# Current platform
+npm run desktop:build
+
+# Explicit targets
+npm run desktop:build:mac   # .dmg / .zip
+npm run desktop:build:win   # NSIS .exe (build on Windows or use CI)
+```
+
+Installers are written to `release/`.
+
+#### Build Windows (and macOS) via GitHub Actions
+
+You do not need a Windows machine. CI builds installers on GitHub runners:
+
+1. Push to GitHub (or open a PR that touches desktop files)
+2. Or run manually: **Actions → Desktop Build → Run workflow**
+3. When the job finishes, download artifacts:
+   - `MyLab-Windows` → `.exe` installer
+   - `MyLab-macOS` → `.dmg` / `.zip`
+
+```bash
+# Trigger from your machine
+gh workflow run "Desktop Build"
+gh run watch
+# Then download:
+gh run download --name MyLab-Windows
+```
+
+Tags matching `v*` (e.g. `v0.2.0`) also trigger a full desktop build.
+
+### Web / Docker (optional)
+
+Cloud-style Docker + MySQL is still available if you need it:
+
+```bash
+docker compose up --build
 # Frontend: http://localhost:3001
 # API: http://localhost:4000
 # MySQL: localhost:3306
+```
+
+For local API without Docker (SQLite):
+
+```bash
+npm run api:dev          # http://127.0.0.1:4000
+NEXT_PUBLIC_API_URL=http://127.0.0.1:4000 npm run dev
 ```
 
 ### Project Structure
 
 ```
 ├── app/                    # Next.js frontend pages
-│   ├── doctor/             # Doctor dashboard, tests, reports, staff, settings, profile
-│   ├── compounder/         # Compounder reports workflow
-│   └── login/              # Authentication
-├── components/             # Shared UI components (Sidebar, ThemeRegistry)
+├── components/             # Shared UI components
 ├── lib/                    # API client utility
-├── express-api/            # Express.js backend
-│   ├── src/
-│   │   ├── routes/         # API endpoints (auth, reports, tests, patients, settings)
-│   │   ├── models/         # Sequelize models (User, Report, ReportItem, TestDefinition, etc.)
-│   │   └── lib/            # Database config, session helpers
-│   └── uploads/            # Signature and logo file storage
-├── docker-compose.yml      # Local development orchestration
-├── Dockerfile              # Next.js production build
+├── electron/               # Electron main + preload
+├── express-api/            # Express.js backend (SQLite by default)
+├── data/                   # Dev SQLite database (gitignored)
+├── scripts/prepare-desktop.js
+├── electron-builder.yml
+├── docker-compose.yml      # Optional MySQL/Docker stack
 └── railway-manager/        # Railway infrastructure dashboard
 ```
 
@@ -91,36 +146,12 @@ docker compose up --build
 
 A web-based dashboard to manage your Railway account via their GraphQL API.
 
-### Live URL
-
-https://railway-manager-production-4151.up.railway.app
-
 ### Features
 
 - **Projects** — View all projects with service status and resource usage
-- **Services** — Full management per service:
-  - Deployments (list, redeploy, remove, active deployment indicator)
-  - Variables (add, delete, view)
-  - Settings (start/build commands, replicas, region, healthcheck, cron, restart policy, dockerfile path, sleep mode)
-  - Resources (set CPU vCPUs and Memory GB via serviceInstanceLimitsUpdate)
-  - Volumes (view size, usage progress bar, mount path)
-  - Domains (Railway domains, custom domains)
-  - Logs (build logs + runtime logs from latest/active deployment)
-- **Usage & Billing** — Real billing data from Railway API:
-  - Current usage (actual dollar amount from `customer.currentUsage`)
-  - Estimated monthly bill (projected)
-  - Per-project resource breakdown (CPU, Memory, Disk, Network)
-  - Per-service usage table
-  - Plan limits overview
-- **Status Detection** — Uses `activeDeployments` to show true running state (not confused by failed builds)
-- **React Query Caching** — Navigation between pages is instant (1-min stale time)
-
-### Tech Stack
-
-- Next.js 14, React Query (@tanstack/react-query)
-- Railway GraphQL API (backboard.railway.app/graphql/v2)
-- Server-side API proxy to avoid CORS
-- Dark theme UI
+- **Services** — Deployments, variables, settings, resources, volumes, domains, logs
+- **Usage & Billing** — Current usage and estimated monthly bill
+- **React Query Caching** — Fast navigation between pages
 
 ### Authentication
 
@@ -134,34 +165,3 @@ npm install
 npm run dev
 # http://localhost:3002
 ```
-
----
-
-## Deployment
-
-All services deploy to Railway via CLI:
-
-```bash
-# Deploy API
-railway up --service mylab-api --path-as-root -d express-api
-
-# Deploy Frontend
-railway up -s mylab-app -d
-
-# Deploy Railway Manager
-railway up --service railway-manager --path-as-root -d railway-manager
-```
-
-### Environment Variables
-
-**mylab-api:**
-- `DATABASE_URL` — MySQL connection string (from Railway MySQL plugin)
-- `PORT` — 4000
-- `FRONTEND_URL` — Frontend URL for CORS
-- `NODE_ENV` — production
-
-**mylab-app:**
-- `NEXT_PUBLIC_API_URL` — Express API URL (build-time)
-
-**railway-manager:**
-- No env vars needed (token stored in browser localStorage)

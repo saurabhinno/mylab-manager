@@ -1,4 +1,5 @@
 import express from "express";
+import fs from "fs";
 import path from "path";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -13,29 +14,34 @@ import { initDatabase } from "@/models";
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Middleware
-app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (mobile apps, curl, etc)
-    if (!origin) return callback(null, true);
-    // Allow all .railway.app domains, localhost, and codefliq.com
-    if (origin.includes('railway.app') || origin.includes('localhost') || origin.includes('codefliq.com')) {
-      return callback(null, true);
-    }
-    // Allow configured frontend URL
-    const allowed = process.env.FRONTEND_URL;
-    if (allowed && origin === allowed) return callback(null, true);
-    callback(null, true); // Allow all in production for now
-  },
-  credentials: true,
-}));
-app.use(express.json({ limit: '5mb' }));
+const uploadsDir =
+  process.env.UPLOADS_DIR || path.join(__dirname, "../uploads");
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (
+        origin.includes("railway.app") ||
+        origin.includes("localhost") ||
+        origin.includes("127.0.0.1") ||
+        origin.includes("codefliq.com")
+      ) {
+        return callback(null, true);
+      }
+      const allowed = process.env.FRONTEND_URL;
+      if (allowed && origin === allowed) return callback(null, true);
+      callback(null, true);
+    },
+    credentials: true,
+  })
+);
+app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
-// Serve uploaded files statically
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+app.use("/uploads", express.static(uploadsDir));
 
-// Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/patients", patientsRoutes);
 app.use("/api/reports", reportsRoutes);
@@ -43,19 +49,18 @@ app.use("/api/tests", testsRoutes);
 app.use("/api/test", testRoutes);
 app.use("/api/settings", settingsRoutes);
 
-// Health check
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-// Initialize database and start server
 const startServer = async () => {
   try {
     await initDatabase();
     console.log("Database initialized successfully");
-    
-    app.listen(PORT, () => {
-      console.log(`Express API server running on port ${PORT}`);
+
+    // Always bind IPv4 loopback — Electron/Next use 127.0.0.1, not ::1.
+    app.listen(Number(PORT), "127.0.0.1", () => {
+      console.log(`Express API server running on http://127.0.0.1:${PORT}`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);

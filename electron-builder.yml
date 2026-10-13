@@ -1,0 +1,38 @@
+appId: com.mylab.desktop
+productName: MyLab
+copyright: Copyright © MyLab
+
+directories:
+  output: release
+  buildResources: electron/resources
+
+files:
+  - electron/**/*
+  - package.json
+
+extraResources:
+  - from: desktop-dist/api
+    to: api
+  - from: desktop-dist/app-server
+    to: app-server
+
+mac:
+  category: public.app-category.medical
+  target:
+    - dmg
+    - zip
+  # Unsigned/local builds: hardened runtime blocks launch without Apple signing.
+  hardenedRuntime: false
+  identity: null
+
+win:
+  target:
+    - nsis
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+linux:
+  target:
+    - AppImage

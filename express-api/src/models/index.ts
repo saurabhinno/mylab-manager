@@ -1,4 +1,4 @@
-import sequelize from "@/lib/sequelize";
+import sequelize, { isSqlite } from "@/lib/sequelize";
 import { User } from "@/models/User";
 import { Patient } from "@/models/Patient";
 import { TestDefinition } from "@/models/TestDefinition";
@@ -146,12 +146,14 @@ export const initDatabase = async () => {
   // Set up associations before sync
   associateReport();
 
-  await User.sync({ alter: true });
+  // SQLite alter support is limited; create-if-missing is enough for desktop.
+  const syncOpts = isSqlite ? {} : { alter: true };
+  await User.sync(syncOpts);
   await Patient.sync();
-  await TestDefinition.sync({ alter: true });
-  await Report.sync({ alter: true });
-  await ReportItem.sync({ alter: true });
-  await LabSettings.sync({ alter: true });
+  await TestDefinition.sync(syncOpts);
+  await Report.sync(syncOpts);
+  await ReportItem.sync(syncOpts);
+  await LabSettings.sync(syncOpts);
 
   // Seed default doctor if not exists
   const defaultDoctor = await User.findOne({ where: { email: "doctor@mylab.com" } });
@@ -169,8 +171,9 @@ export const initDatabase = async () => {
   // Seed tests: truncate and re-seed if no panels exist
   const panelCount = await TestDefinition.count({ where: { is_panel: true } });
   if (panelCount === 0) {
-    // Truncate existing tests to start fresh with panel structure
-    await TestDefinition.destroy({ where: {}, truncate: true });
+    // Clear existing tests to start fresh with panel structure
+    // (avoid truncate — SQLite + FKs do not support it cleanly)
+    await TestDefinition.destroy({ where: {} });
 
     // Seed panel tests with their parameters
     for (const { panel, parameters } of panelTests) {

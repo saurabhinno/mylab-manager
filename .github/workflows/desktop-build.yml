@@ -1,0 +1,99 @@
+name: Desktop Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+  pull_request:
+    paths:
+      - "electron/**"
+      - "express-api/**"
+      - "app/**"
+      - "components/**"
+      - "lib/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "electron-builder.yml"
+      - ".github/workflows/desktop-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install API dependencies
+        working-directory: express-api
+        run: npm ci
+
+      - name: Build Windows installer
+        env:
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run desktop:build:win
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyLab-Windows
+          path: |
+            release/*.exe
+            release/*.exe.blockmap
+            release/latest.yml
+          if-no-files-found: error
+          retention-days: 14
+
+  build-macos:
+    name: macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install API dependencies
+        working-directory: express-api
+        run: npm ci
+
+      - name: Build macOS DMG
+        env:
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run desktop:build:mac
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyLab-macOS
+          path: |
+            release/*.dmg
+            release/*.dmg.blockmap
+            release/*.zip
+            release/*.zip.blockmap
+            release/latest-mac.yml
+          if-no-files-found: error
+          retention-days: 14

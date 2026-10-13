@@ -3,3 +3,9 @@ node_modules
 out
 .env*
 .DS_Store
+data/
+desktop-dist/
+release/
+dist/
+*.sqlite
+*.sqlite-journal

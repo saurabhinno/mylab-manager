@@ -12,10 +12,16 @@ export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
+function cookieSecure() {
+  // Desktop runs on local HTTP; secure cookies would never be stored.
+  if (process.env.DESKTOP === "1") return false;
+  return process.env.NODE_ENV === "production";
+}
+
 export function setSessionCookie(res: Response, userId: number) {
   res.cookie(COOKIE_NAME, String(userId), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: cookieSecure(),
     sameSite: "lax",
     path: "/",
     maxAge: COOKIE_MAX_AGE,
@@ -25,7 +31,7 @@ export function setSessionCookie(res: Response, userId: number) {
 export function clearSessionCookie(res: Response) {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: cookieSecure(),
     sameSite: "lax",
     path: "/",
   });

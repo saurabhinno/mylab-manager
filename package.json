@@ -1,12 +1,22 @@
 {
   "name": "mylab",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "description": "MyLab — local desktop blood test diagnostics portal",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "api:dev": "cd express-api && cross-env DESKTOP=1 DB_DIALECT=sqlite SQLITE_PATH=../data/mylab.sqlite npm run dev",
+    "api:build": "cd express-api && npm run build",
+    "desktop:dev": "concurrently -k -n api,web,electron -c blue,green,magenta \"npm run api:dev\" \"cross-env NEXT_PUBLIC_API_URL=http://localhost:4000 npm run dev\" \"wait-on http://localhost:4000/health http://localhost:3000 && cross-env MYLAB_DEV_API_PORT=4000 MYLAB_DEV_APP_PORT=3000 electron .\"",
+    "desktop:prepare": "node scripts/prepare-desktop.js",
+    "desktop:build": "npm run api:build && cross-env NEXT_PUBLIC_API_URL=http://127.0.0.1:47821 npm run build && npm run desktop:prepare && electron-builder",
+    "desktop:build:mac": "npm run api:build && cross-env NEXT_PUBLIC_API_URL=http://127.0.0.1:47821 npm run build && npm run desktop:prepare && electron-builder --mac",
+    "desktop:build:win": "npm run api:build && cross-env NEXT_PUBLIC_API_URL=http://127.0.0.1:47821 npm run build && npm run desktop:prepare && electron-builder --win",
+    "postinstall": "node scripts/ensure-electron.js && (electron-builder install-app-deps || true)"
   },
   "dependencies": {
     "@emotion/react": "^11.11.0",
@@ -31,8 +41,20 @@
     "@types/node": "^20.14.8",
     "@types/react": "^18.3.4",
     "@types/react-dom": "^18.3.0",
+    "concurrently": "^9.2.5",
+    "cross-env": "^10.1.0",
+    "electron": "^34.5.8",
+    "electron-builder": "^25.1.8",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.5",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "wait-on": "^8.0.5"
+  },
+  "build": {
+    "extends": "electron-builder.yml"
+  },
+  "allowScripts": {
+    "electron@34.5.8": true,
+    "unrs-resolver@1.11.1": true
   }
 }

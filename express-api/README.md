@@ -58,11 +58,14 @@ The API is configured to run in Docker via docker-compose. See the main project'
 
 ## Environment Variables
 
-- `PORT` - Server port (default: 4000)
-- `MYSQL_HOST` - MySQL host
-- `MYSQL_PORT` - MySQL port
-- `MYSQL_DATABASE` - Database name
-- `MYSQL_USER` - Database user
-- `MYSQL_PASSWORD` - Database password
-- `NODE_ENV` - Environment (development/production)
-- `FRONTEND_URL` - Frontend URL for CORS
+**Desktop / local (default):**
+- `DESKTOP=1` or `DB_DIALECT=sqlite` — use SQLite
+- `SQLITE_PATH` — path to the `.sqlite` file (default: `./data/mylab.sqlite`)
+- `UPLOADS_DIR` — local uploads directory
+- `PORT` — Server port (default: 4000)
+- `FRONTEND_URL` — Frontend URL for CORS
+- `NODE_ENV` — Environment (development/production)
+
+**Optional MySQL (set `MYSQL_HOST` or `DATABASE_URL`, and do not set `DESKTOP=1`):**
+- `DATABASE_URL` / `MYSQL_URL` — MySQL connection string
+- `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`
