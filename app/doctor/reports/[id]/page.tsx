@@ -6,8 +6,9 @@ import {
   Box, Typography, Button, CircularProgress, Divider, Table,
   TableBody, TableCell, TableHead, TableRow, TableContainer, Chip,
 } from "@mui/material";
-import { PrintOutlined, ArrowBackOutlined } from "@mui/icons-material";
+import { PrintOutlined, ArrowBackOutlined, PaymentOutlined, DeleteOutlined } from "@mui/icons-material";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 
@@ -75,6 +76,7 @@ function groupItemsIntoPages(items: ReportItemData[]): { title: string; items: R
 
 export default function DoctorReportViewPage() {
   const params = useParams();
+  const router = useRouter();
   const [report, setReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -86,6 +88,23 @@ export default function DoctorReportViewPage() {
         .catch(() => setLoading(false));
     }
   }, [params.id]);
+
+  async function togglePayment() {
+    if (!report) return;
+    const next = report.payment_status === "paid" ? "unpaid" : "paid";
+    const res = await apiRequest(`/api/reports/${report.id}/payment`, {
+      method: "PUT",
+      body: JSON.stringify({ payment_status: next }),
+    });
+    if (res.ok) setReport({ ...report, payment_status: next });
+  }
+
+  async function handleDelete() {
+    if (!report) return;
+    if (!confirm(`Delete report #${report.id} for ${report.patient_name}? This cannot be undone.`)) return;
+    const res = await apiRequest(`/api/reports/${report.id}`, { method: "DELETE" });
+    if (res.ok) router.push("/doctor/reports");
+  }
 
   if (loading) {
     return (
@@ -116,9 +135,21 @@ export default function DoctorReportViewPage() {
       <Box sx={{ "@media print": { display: "none" } }}><Sidebar role="doctor" email="doctor@mylab.com" /></Box>
       <Box sx={{ flexGrow: 1, p: 3, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "center", "@media print": { p: 0, overflow: "visible", display: "block" } }} id="main-content" tabIndex={-1}>
         {/* Action bar */}
-        <Box data-noprint="true" sx={{ width: 794, mb: 2, display: "flex", gap: 2, "@media print": { display: "none !important" } }}>
+        <Box data-noprint="true" sx={{ width: 794, mb: 2, display: "flex", gap: 2, flexWrap: "wrap", "@media print": { display: "none !important" } }}>
           <Button variant="outlined" size="small" startIcon={<ArrowBackOutlined />} component={Link} href="/doctor/reports">Back</Button>
           <Button variant="contained" size="small" startIcon={<PrintOutlined />} onClick={() => window.print()}>Print All</Button>
+          <Button
+            variant="outlined"
+            size="small"
+            color={report.payment_status === "paid" ? "success" : "warning"}
+            startIcon={<PaymentOutlined />}
+            onClick={togglePayment}
+          >
+            {report.payment_status === "paid" ? "Paid — Mark Unpaid" : "Unpaid — Mark Paid"}
+          </Button>
+          <Button variant="outlined" size="small" color="error" startIcon={<DeleteOutlined />} onClick={handleDelete}>
+            Delete
+          </Button>
         </Box>
 
         {/* One A4 page per panel/test */}

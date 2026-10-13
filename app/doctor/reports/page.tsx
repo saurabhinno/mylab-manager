@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import {
   Box, Typography, Card, CardContent, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Chip, TextField, InputAdornment,
-  CircularProgress, Button, ButtonGroup, Grid,
+  CircularProgress, Button, ButtonGroup, Grid, IconButton, Tooltip,
 } from "@mui/material";
-import { SearchOutlined, TodayOutlined, DateRangeOutlined, ClearOutlined } from "@mui/icons-material";
+import {
+  SearchOutlined, TodayOutlined, DateRangeOutlined, ClearOutlined,
+  DeleteOutlined, PaymentOutlined,
+} from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -19,6 +22,7 @@ interface Report {
   patient_weight: number;
   referred_by: string | null;
   total_price: number;
+  payment_status: string;
   status: string;
 }
 
@@ -33,12 +37,30 @@ export default function DoctorReportsPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  useEffect(() => {
+  const loadReports = () =>
     apiRequest("/api/reports")
       .then((r) => r.json())
       .then((d) => { setReports(Array.isArray(d) ? d : []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+
+  useEffect(() => { loadReports(); }, []);
+
+  async function togglePayment(r: Report) {
+    const next = r.payment_status === "paid" ? "unpaid" : "paid";
+    const res = await apiRequest(`/api/reports/${r.id}/payment`, {
+      method: "PUT",
+      body: JSON.stringify({ payment_status: next }),
+    });
+    if (res.ok) {
+      setReports((prev) => prev.map((x) => x.id === r.id ? { ...x, payment_status: next } : x));
+    }
+  }
+
+  async function handleDelete(r: Report) {
+    if (!confirm(`Delete report #${r.id} for ${r.patient_name}? This cannot be undone.`)) return;
+    const res = await apiRequest(`/api/reports/${r.id}`, { method: "DELETE" });
+    if (res.ok) setReports((prev) => prev.filter((x) => x.id !== r.id));
+  }
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -198,6 +220,7 @@ export default function DoctorReportsPage() {
                     <TableCell>{t("reports.col_date")}</TableCell>
                     <TableCell align="right">{t("reports.col_amount")}</TableCell>
                     <TableCell>{t("reports.col_status")}</TableCell>
+                    <TableCell align="center">Payment</TableCell>
                     <TableCell align="center">{t("reports.col_view")}</TableCell>
                   </TableRow>
                 </TableHead>
@@ -218,15 +241,27 @@ export default function DoctorReportsPage() {
                         />
                       </TableCell>
                       <TableCell align="center">
+                        <Tooltip title={r.payment_status === "paid" ? "Mark unpaid" : "Mark paid"}>
+                          <IconButton size="small" color={r.payment_status === "paid" ? "success" : "warning"} onClick={() => togglePayment(r)}>
+                            <PaymentOutlined fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell align="center">
                         <Button size="small" variant="text" href={`/doctor/reports/${r.id}`} sx={{ fontSize: 11, minWidth: 0 }} aria-label={`View report ${r.id}`}>
                           {t("reports.col_view")}
                         </Button>
+                        <Tooltip title={t("common.delete")}>
+                          <IconButton size="small" color="error" onClick={() => handleDelete(r)} aria-label={`Delete report ${r.id}`}>
+                            <DeleteOutlined fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} align="center" sx={{ py: 5, color: "text.secondary" }}>
+                      <TableCell colSpan={10} align="center" sx={{ py: 5, color: "text.secondary" }}>
                         {search || filterMode !== "all" ? t("reports.no_match") : t("reports.no_reports")}
                       </TableCell>
                     </TableRow>

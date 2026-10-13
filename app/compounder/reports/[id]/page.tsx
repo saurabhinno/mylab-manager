@@ -6,9 +6,11 @@ import {
   Box, Typography, Button, CircularProgress, Divider, Table,
   TableBody, TableCell, TableHead, TableRow, TableContainer, Chip,
 } from "@mui/material";
-import { PrintOutlined, ArrowBackOutlined } from "@mui/icons-material";
+import { PrintOutlined, ArrowBackOutlined, PaymentOutlined, DeleteOutlined } from "@mui/icons-material";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
+import { useUser } from "@/lib/useUser";
 
 interface ReportItemData {
   id: number;
@@ -43,6 +45,7 @@ interface ReportData {
   total_price: number;
   payment_status: string;
   status: string;
+  compounder_id: number;
   reportItems: ReportItemData[];
   doctor: { name: string | null; email: string; signature_image: string | null } | null;
   labSettings: LabSettingsData | null;
@@ -80,9 +83,30 @@ function groupItemsIntoPages(items: ReportItemData[]): { title: string; items: R
 
 export default function ReportViewPage() {
   const params = useParams();
+  const router = useRouter();
+  const { user: me } = useUser();
   const [report, setReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [autoPrinted, setAutoPrinted] = useState(false);
+
+  const canDelete = !!me && !!report && (me.role === "doctor" || report.compounder_id === me.id);
+
+  async function togglePayment() {
+    if (!report) return;
+    const next = report.payment_status === "paid" ? "unpaid" : "paid";
+    const res = await apiRequest(`/api/reports/${report.id}/payment`, {
+      method: "PUT",
+      body: JSON.stringify({ payment_status: next }),
+    });
+    if (res.ok) setReport({ ...report, payment_status: next });
+  }
+
+  async function handleDelete() {
+    if (!report || !canDelete) return;
+    if (!confirm(`Delete report #${report.id} for ${report.patient_name}? This cannot be undone.`)) return;
+    const res = await apiRequest(`/api/reports/${report.id}`, { method: "DELETE" });
+    if (res.ok) router.push("/compounder/reports");
+  }
 
   useEffect(() => {
     if (params.id) {
@@ -122,11 +146,25 @@ export default function ReportViewPage() {
   return (
     <Box sx={{ bgcolor: "#e2e8f0", minHeight: "100vh", py: 3, px: 2, "@media print": { bgcolor: "#fff", p: 0, m: 0, minHeight: 0 } }}>
       {/* Action bar — hidden on print */}
-      <Box data-noprint="true" sx={{ maxWidth: 794, mx: "auto", mb: 2, display: "flex", gap: 2, "@media print": { display: "none !important" } }}>
+      <Box data-noprint="true" sx={{ maxWidth: 794, mx: "auto", mb: 2, display: "flex", gap: 2, flexWrap: "wrap", "@media print": { display: "none !important" } }}>
         <Button variant="outlined" size="small" startIcon={<ArrowBackOutlined />} component={Link} href="/compounder/reports">Back</Button>
         <Button variant="contained" size="small" startIcon={<PrintOutlined />} onClick={() => window.print()}>Print All Reports</Button>
         {report.status !== "finalized" && (
           <Button variant="outlined" size="small" color="warning" component={Link} href={`/compounder/reports/${report.id}/results`}>Edit Results</Button>
+        )}
+        <Button
+          variant="outlined"
+          size="small"
+          color={report.payment_status === "paid" ? "success" : "warning"}
+          startIcon={<PaymentOutlined />}
+          onClick={togglePayment}
+        >
+          {report.payment_status === "paid" ? "Paid — Mark Unpaid" : "Unpaid — Mark Paid"}
+        </Button>
+        {canDelete && (
+          <Button variant="outlined" size="small" color="error" startIcon={<DeleteOutlined />} onClick={handleDelete}>
+            Delete
+          </Button>
         )}
       </Box>
 

@@ -4,8 +4,15 @@ import { ReportItem } from "@/models/ReportItem";
 import { TestDefinition } from "@/models/TestDefinition";
 import { User } from "@/models/User";
 import { LabSettings } from "@/models/LabSettings";
+import { getUserIdFromCookie } from "@/lib/session";
 
 const router = Router();
+
+async function requireUser(req: Request) {
+  const userId = getUserIdFromCookie(req.cookies);
+  if (!userId) return null;
+  return User.findByPk(userId);
+}
 
 // List all reports
 router.get("/", async (req: Request, res: Response) => {
@@ -66,7 +73,15 @@ router.post("/", async (req: Request, res: Response) => {
     });
     const totalPrice = testDefinitions.reduce((sum, test) => sum + test.price, 0);
 
-    const doctor = await User.findOne({ where: { role: "doctor" } });
+    const actor = await requireUser(req);
+    if (!actor) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    const doctor =
+      actor.role === "doctor"
+        ? actor
+        : await User.findOne({ where: { role: "doctor" } });
     if (!doctor) {
       return res.status(500).json({ error: "No doctor account configured." });
     }
@@ -79,10 +94,10 @@ router.post("/", async (req: Request, res: Response) => {
       patient_phone: phone || null,
       referred_by: referredBy || null,
       total_price: totalPrice,
-      payment_status: paymentStatus || "unpaid",
+      payment_status: paymentStatus === "paid" ? "paid" : "unpaid",
       status: "sample_collected",
       sample_collected_at: new Date(),
-      compounder_id: 1,
+      compounder_id: actor.id,
       doctor_id: doctor.id,
     });
 
@@ -183,15 +198,48 @@ router.put("/:id/finalize", async (req: Request, res: Response) => {
   }
 });
 
-// Update payment status
+// Update payment status (paid <-> unpaid)
 router.put("/:id/payment", async (req: Request, res: Response) => {
   try {
+    const actor = await requireUser(req);
+    if (!actor) return res.status(401).json({ error: "Not authenticated" });
+
     const report = await Report.findByPk(req.params.id);
     if (!report) {
       return res.status(404).json({ error: "Report not found." });
     }
-    report.payment_status = req.body.payment_status || "paid";
+
+    const next = req.body.payment_status === "paid" ? "paid" : "unpaid";
+    report.payment_status = next;
     await report.save();
+    return res.json({ success: true, payment_status: report.payment_status });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Delete report
+// - Doctor: any report
+// - Compounder: only reports they created
+router.delete("/:id", async (req: Request, res: Response) => {
+  try {
+    const actor = await requireUser(req);
+    if (!actor) return res.status(401).json({ error: "Not authenticated" });
+
+    const report = await Report.findByPk(req.params.id);
+    if (!report) {
+      return res.status(404).json({ error: "Report not found." });
+    }
+
+    if (actor.role !== "doctor" && report.compounder_id !== actor.id) {
+      return res.status(403).json({
+        error: "You can only delete reports you created.",
+      });
+    }
+
+    await ReportItem.destroy({ where: { report_id: report.id } });
+    await report.destroy();
     return res.json({ success: true });
   } catch (error) {
     console.error(error);

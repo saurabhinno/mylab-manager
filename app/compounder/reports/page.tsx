@@ -12,17 +12,18 @@ import {
   SearchOutlined, AddOutlined, EditOutlined, CloseOutlined,
   ScienceOutlined, PersonOutlined, PrintOutlined, CheckCircleOutlined,
   PhoneOutlined,
-  PaymentOutlined, HistoryOutlined,
+  PaymentOutlined, HistoryOutlined, DeleteOutlined,
 } from "@mui/icons-material";
 import { useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { useUser } from "@/lib/useUser";
 
 interface TestParam { id: number; name: string; unit: string | null; default_min: number | null; default_max: number | null; display_order: number; }
 interface TestDef { id: number; name: string; category: string; sample_type: string; price: number; is_panel: boolean; parameters?: TestParam[]; }
 interface ReportItem { id: number; test_name: string; sample_type: string | null; result_value: string; unit: string | null; normal_min: number | null; normal_max: number | null; panel_name: string | null; }
-interface Report { id: number; date: string; patient_name: string; patient_age: number; patient_gender: string | null; patient_phone: string | null; referred_by: string | null; total_price: number; payment_status: string; status: string; reportItems?: ReportItem[]; compounder?: { name: string | null; email: string }; }
+interface Report { id: number; date: string; patient_name: string; patient_age: number; patient_gender: string | null; patient_phone: string | null; referred_by: string | null; total_price: number; payment_status: string; status: string; compounder_id: number; reportItems?: ReportItem[]; compounder?: { id?: number; name: string | null; email: string }; }
 
 type ModalMode = null | "collect" | "results";
 type ViewFilter = "today" | "pending" | "done" | "all";
@@ -30,12 +31,19 @@ type ViewFilter = "today" | "pending" | "done" | "all";
 export default function CompounderReportsPage() {
   const router = useRouter();
   const { t } = useI18n();
+  const { user: me } = useUser();
   const [reports, setReports] = useState<Report[]>([]);
   const [allTests, setAllTests] = useState<TestDef[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<ViewFilter>("today");
   const [alert, setAlert] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+
+  function canDeleteReport(r: Report) {
+    if (!me) return false;
+    if (me.role === "doctor") return true;
+    return r.compounder_id === me.id;
+  }
 
   // Modal state
   const [modal, setModal] = useState<ModalMode>(null);
@@ -169,10 +177,36 @@ export default function CompounderReportsPage() {
     setTimeout(() => setAlert(null), 3000);
   }
 
-  async function markPaid(id: number) {
-    await apiRequest(`/api/reports/${id}/payment`, { method: "PUT", body: JSON.stringify({ payment_status: "paid" }) });
+  async function togglePayment(id: number, current: string) {
+    const next = current === "paid" ? "unpaid" : "paid";
+    const res = await apiRequest(`/api/reports/${id}/payment`, {
+      method: "PUT",
+      body: JSON.stringify({ payment_status: next }),
+    });
+    if (!res.ok) {
+      setAlert({ type: "error", msg: "Failed to update payment" });
+      setTimeout(() => setAlert(null), 3000);
+      return;
+    }
     if (navigator.vibrate) navigator.vibrate(50);
-    setReports((prev) => prev.map((r) => r.id === id ? { ...r, payment_status: "paid" } : r));
+    setReports((prev) => prev.map((r) => r.id === id ? { ...r, payment_status: next } : r));
+    setActiveReport((prev) => (prev && prev.id === id ? { ...prev, payment_status: next } : prev));
+  }
+
+  async function handleDeleteReport(r: Report) {
+    if (!canDeleteReport(r)) return;
+    if (!confirm(`Delete report #${r.id} for ${r.patient_name}? This cannot be undone.`)) return;
+    const res = await apiRequest(`/api/reports/${r.id}`, { method: "DELETE" });
+    if (res.ok) {
+      if (navigator.vibrate) navigator.vibrate(50);
+      setReports((prev) => prev.filter((x) => x.id !== r.id));
+      if (activeReport?.id === r.id) closeModal();
+      setAlert({ type: "success", msg: `Report #${r.id} deleted` });
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setAlert({ type: "error", msg: d.error || "Failed to delete" });
+    }
+    setTimeout(() => setAlert(null), 3000);
   }
 
   const selectedTests = allTests.filter((t) => selectedTestIds.includes(t.id));
@@ -273,7 +307,13 @@ export default function CompounderReportsPage() {
                       </Box>
                       <Box sx={{ textAlign: "right" }}>
                         <Typography sx={{ fontWeight: 700, color: "#00897b", fontSize: 16 }}>₹{r.total_price.toFixed(0)}</Typography>
-                        <Typography variant="caption" color="text.secondary">#{r.id} • {new Date(r.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</Typography>
+                        <Chip
+                          label={r.payment_status === "paid" ? t("common.paid") : t("common.unpaid")}
+                          size="small"
+                          color={r.payment_status === "paid" ? "success" : "warning"}
+                          sx={{ fontSize: 10, height: 18, mt: 0.3 }}
+                        />
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>#{r.id} • {new Date(r.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</Typography>
                         {r.compounder && (
                           <Typography variant="caption" sx={{ display: "block", color: "text.disabled", fontSize: 10 }}>
                             by {r.compounder.name || r.compounder.email.split("@")[0]}
@@ -335,14 +375,24 @@ export default function CompounderReportsPage() {
                           </Button>
                         </>
                       )}
-                      {r.payment_status !== "paid" && (
+                      <Button
+                        variant="outlined"
+                        color={r.payment_status === "paid" ? "success" : "warning"}
+                        onClick={() => togglePayment(r.id, r.payment_status)}
+                        sx={{ py: 1.2, minWidth: 44 }}
+                        title={r.payment_status === "paid" ? t("common.paid") : t("common.unpaid")}
+                      >
+                        <PaymentOutlined />
+                      </Button>
+                      {canDeleteReport(r) && (
                         <Button
                           variant="outlined"
-                          color="warning"
-                          onClick={() => markPaid(r.id)}
+                          color="error"
+                          onClick={() => handleDeleteReport(r)}
                           sx={{ py: 1.2, minWidth: 44 }}
+                          title={t("common.delete")}
                         >
-                          <PaymentOutlined />
+                          <DeleteOutlined />
                         </Button>
                       )}
                     </Box>
@@ -588,6 +638,32 @@ export default function CompounderReportsPage() {
 
           {/* Action buttons */}
           <Box sx={{ px: 3, pb: 2, borderTop: "1px solid #e2e8f0", pt: 2 }}>
+            {activeReport && (
+              <Box sx={{ display: "flex", gap: 1, mb: 1.5, flexWrap: "wrap" }}>
+                <Button
+                  variant="outlined"
+                  color={activeReport.payment_status === "paid" ? "success" : "warning"}
+                  onClick={() => togglePayment(activeReport.id, activeReport.payment_status)}
+                  startIcon={<PaymentOutlined />}
+                  sx={{ py: 1 }}
+                >
+                  {activeReport.payment_status === "paid"
+                    ? `${t("common.paid")} — Mark ${t("common.unpaid")}`
+                    : `${t("common.unpaid")} — Mark ${t("common.paid")}`}
+                </Button>
+                {canDeleteReport(activeReport) && (
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={() => handleDeleteReport(activeReport)}
+                    startIcon={<DeleteOutlined />}
+                    sx={{ py: 1 }}
+                  >
+                    {t("common.delete")}
+                  </Button>
+                )}
+              </Box>
+            )}
             <Box sx={{ display: "flex", gap: 1.5 }}>
               <Button onClick={() => handleSaveResults(false)} variant="outlined" fullWidth disabled={saving} sx={{ py: 1.3, fontSize: 14 }}>
                 {t("compounder.save_draft")}

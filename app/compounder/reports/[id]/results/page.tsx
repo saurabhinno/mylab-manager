@@ -5,11 +5,15 @@ import { useParams, useRouter } from "next/navigation";
 import {
   Box, Typography, Card, CardContent, TextField, Button, Alert,
   Table, TableBody, TableCell, TableHead, TableRow, TableContainer,
-  Chip, CircularProgress, Divider,
+  Chip, CircularProgress,
 } from "@mui/material";
-import { SaveOutlined, ArrowBackOutlined, CheckCircleOutlined } from "@mui/icons-material";
+import {
+  SaveOutlined, ArrowBackOutlined, CheckCircleOutlined,
+  PaymentOutlined, DeleteOutlined,
+} from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
+import { useUser } from "@/lib/useUser";
 
 interface ReportItemData {
   id: number;
@@ -30,18 +34,23 @@ interface ReportData {
   patient_gender: string | null;
   date: string;
   status: string;
+  payment_status: string;
+  compounder_id: number;
   reportItems: ReportItemData[];
 }
 
 export default function EnterResultsPage() {
   const params = useParams();
   const router = useRouter();
+  const { user: me } = useUser();
   const [report, setReport] = useState<ReportData | null>(null);
   const [results, setResults] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [alert, setAlert] = useState<{ type: "success" | "error"; msg: string } | null>(null);
   const inputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+
+  const canDelete = !!me && (me.role === "doctor" || (report != null && report.compounder_id === me.id));
 
   useEffect(() => {
     if (params.id) {
@@ -102,6 +111,35 @@ export default function EnterResultsPage() {
         const nextId = allItems[idx + 1].id;
         inputRefs.current[nextId]?.focus();
       }
+    }
+  }
+
+  async function togglePayment() {
+    if (!report) return;
+    const next = report.payment_status === "paid" ? "unpaid" : "paid";
+    const res = await apiRequest(`/api/reports/${report.id}/payment`, {
+      method: "PUT",
+      body: JSON.stringify({ payment_status: next }),
+    });
+    if (res.ok) {
+      setReport({ ...report, payment_status: next });
+      setAlert({ type: "success", msg: next === "paid" ? "Marked as paid" : "Marked as unpaid" });
+    } else {
+      setAlert({ type: "error", msg: "Failed to update payment" });
+    }
+    setTimeout(() => setAlert(null), 3000);
+  }
+
+  async function handleDelete() {
+    if (!report || !canDelete) return;
+    if (!confirm(`Delete report #${report.id} for ${report.patient_name}? This cannot be undone.`)) return;
+    const res = await apiRequest(`/api/reports/${report.id}`, { method: "DELETE" });
+    if (res.ok) {
+      router.push("/compounder/reports");
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setAlert({ type: "error", msg: d.error || "Failed to delete" });
+      setTimeout(() => setAlert(null), 4000);
     }
   }
 
@@ -243,6 +281,21 @@ export default function EnterResultsPage() {
         {/* Action buttons */}
         <Card sx={{ position: "sticky", bottom: 0, borderRadius: 2, mt: 2 }}>
           <CardContent>
+            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 2 }}>
+              <Button
+                variant="outlined"
+                color={report.payment_status === "paid" ? "success" : "warning"}
+                onClick={togglePayment}
+                startIcon={<PaymentOutlined />}
+              >
+                {report.payment_status === "paid" ? "Paid — Mark Unpaid" : "Unpaid — Mark Paid"}
+              </Button>
+              {canDelete && (
+                <Button variant="outlined" color="error" onClick={handleDelete} startIcon={<DeleteOutlined />}>
+                  Delete Report
+                </Button>
+              )}
+            </Box>
             <Box sx={{ display: "flex", gap: 2 }}>
               <Button
                 variant="outlined"
