@@ -31,15 +31,31 @@ function ensureConfigured() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
+  // electron-updater picks PrivateGitHubProvider only when a token is present.
+  // Prefer GH_TOKEN env (checked first when private:true), then setFeedURL.token.
+  if (cfg.token) {
+    process.env.GH_TOKEN = cfg.token;
+    process.env.GITHUB_TOKEN = cfg.token;
+  }
+
   if (cfg.feedUrl) {
     autoUpdater.setFeedURL({ provider: "generic", url: cfg.feedUrl });
+    logFn("Updater: generic feed configured");
   } else {
+    const token = cfg.token || process.env.GH_TOKEN || process.env.GITHUB_TOKEN || null;
+    if (!token) {
+      logFn(
+        "Updater: no GitHub token baked in — private Releases will 404. Rebuild with MYLAB_GH_UPDATE_TOKEN."
+      );
+    } else {
+      logFn("Updater: GitHub private feed configured (token present)");
+    }
     autoUpdater.setFeedURL({
       provider: "github",
       owner: cfg.owner,
       repo: cfg.repo,
-      private: !!cfg.private,
-      token: cfg.token || undefined,
+      private: true,
+      token: token || undefined,
     });
   }
 

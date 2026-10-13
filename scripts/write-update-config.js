@@ -37,6 +37,16 @@ fs.writeFileSync(
   ) + "\n"
 );
 
+const isTagPublish = process.env.GITHUB_REF
+  ? String(process.env.GITHUB_REF).startsWith("refs/tags/v")
+  : false;
+if (isTagPublish && !config.feedUrl && !config.token) {
+  console.error(
+    "FATAL: MYLAB_GH_UPDATE_TOKEN is missing on a release tag build. Private-repo auto-update will 404."
+  );
+  process.exit(1);
+}
+
 console.log(
   `Wrote ${out} (feedUrl=${config.feedUrl ? "yes" : "no"}, token=${
     config.token ? "yes" : "no"

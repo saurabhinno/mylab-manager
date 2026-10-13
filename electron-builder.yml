@@ -17,10 +17,14 @@ extraResources:
     to: app-server
 
 # Published to GitHub Releases on version tags (v*) so apps can auto-update.
+# private + token are written into app-update.yml so installed apps can read
+# private Releases (token comes from MYLAB_GH_UPDATE_TOKEN at build time).
 publish:
   - provider: github
     owner: saurabhinno
     repo: mylab-manager
+    private: true
+    token: ${env.MYLAB_GH_UPDATE_TOKEN}
     releaseType: release
 
 mac:
