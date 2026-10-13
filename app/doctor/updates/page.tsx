@@ -21,41 +21,7 @@ import {
 import Sidebar from "@/components/Sidebar";
 import { useI18n } from "@/lib/i18n";
 
-type UpdateStatus = {
-  status:
-    | "idle"
-    | "checking"
-    | "available"
-    | "downloading"
-    | "ready"
-    | "latest"
-    | "error"
-    | "dev";
-  currentVersion: string;
-  latestVersion: string | null;
-  percent: number;
-  transferred: number;
-  total: number;
-  error: string | null;
-  message: string | null;
-  packaged?: boolean;
-};
-
-declare global {
-  interface Window {
-    mylab?: {
-      isDesktop?: boolean;
-      updates?: {
-        getStatus: () => Promise<UpdateStatus>;
-        check: () => Promise<UpdateStatus>;
-        download: () => Promise<UpdateStatus>;
-        install: () => Promise<{ ok: boolean; error?: string }>;
-        getVersion: () => Promise<string>;
-        onStatus: (cb: (s: UpdateStatus) => void) => () => void;
-      };
-    };
-  }
-}
+type UpdateStatus = MylabUpdateStatus;
 
 function fmtBytes(n: number) {
   if (!n || n <= 0) return "";
@@ -222,7 +188,7 @@ export default function UpdatesPage() {
                     <Button
                       variant="contained"
                       onClick={handleDownload}
-                      disabled={busy || s === "downloading"}
+                      disabled={busy}
                       startIcon={<DownloadOutlined />}
                     >
                       {`${t("updates.update_btn")} ${status?.latestVersion || ""}`}

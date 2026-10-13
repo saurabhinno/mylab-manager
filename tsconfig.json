@@ -41,6 +41,7 @@
     "components/**/*.tsx",
     "lib/**/*.ts",
     "lib/**/*.tsx",
+    "lib/**/*.d.ts",
     "models/**/*.ts",
     ".next/types/**/*.ts"
   ],

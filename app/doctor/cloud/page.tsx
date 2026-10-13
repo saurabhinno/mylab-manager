@@ -42,19 +42,6 @@ type DriveStatus = {
   };
 };
 
-declare global {
-  interface Window {
-    mylab?: {
-      isDesktop?: boolean;
-      drive?: {
-        getStatus: () => Promise<DriveStatus>;
-        backupNow: () => Promise<{ ok?: boolean; error?: string }>;
-        restore: () => Promise<{ ok?: boolean; cancelled?: boolean; error?: string }>;
-      };
-    };
-  }
-}
-
 function fmt(iso?: string | null) {
   if (!iso) return "—";
   try {
