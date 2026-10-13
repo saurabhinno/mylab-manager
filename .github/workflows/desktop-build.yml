@@ -25,6 +25,7 @@ jobs:
   build-windows:
     name: Windows
     runs-on: windows-latest
+    environment: "mylab / production"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,8 +48,9 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN }}
-          MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL }}
+          # Prefer repo/environment secret; fall back to environment variable
+          MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN || vars.MYLAB_GH_UPDATE_TOKEN }}
+          MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL || vars.MYLAB_UPDATE_FEED_URL }}
         run: npm run desktop:build:win
 
       - name: Publish Windows installer to GitHub Release
@@ -57,8 +59,8 @@ jobs:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN }}
-          MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL }}
+          MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN || vars.MYLAB_GH_UPDATE_TOKEN }}
+          MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL || vars.MYLAB_UPDATE_FEED_URL }}
         run: npm run desktop:publish:win
 
       - name: Upload Windows artifacts
@@ -75,6 +77,7 @@ jobs:
   build-macos:
     name: macOS
     runs-on: macos-latest
+    environment: "mylab / production"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -97,8 +100,8 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN }}
-          MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL }}
+          MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN || vars.MYLAB_GH_UPDATE_TOKEN }}
+          MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL || vars.MYLAB_UPDATE_FEED_URL }}
         run: npm run desktop:build:mac
 
       - name: Publish macOS DMG to GitHub Release
@@ -107,8 +110,8 @@ jobs:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN }}
-          MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL }}
+          MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN || vars.MYLAB_GH_UPDATE_TOKEN }}
+          MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL || vars.MYLAB_UPDATE_FEED_URL }}
         run: npm run desktop:publish:mac
 
       - name: Upload macOS artifacts
