@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const http = require("http");
 const { spawn } = require("child_process");
+const { setupAutoUpdater } = require("./updater");
 
 const API_PORT = process.env.MYLAB_API_PORT || "47821";
 const APP_PORT = process.env.MYLAB_APP_PORT || "47822";
@@ -203,6 +204,7 @@ app.whenReady().then(async () => {
     const { appUrl } = await startServers();
     log(`Services ready, opening ${appUrl}`);
     createWindow(appUrl);
+    setupAutoUpdater(log);
   } catch (err) {
     await showStartupError(err);
     app.quit();

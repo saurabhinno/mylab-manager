@@ -16,6 +16,13 @@ extraResources:
   - from: desktop-dist/app-server
     to: app-server
 
+# Published to GitHub Releases on version tags (v*) so apps can auto-update.
+publish:
+  - provider: github
+    owner: saurabhinno
+    repo: mylab-manager
+    releaseType: release
+
 mac:
   category: public.app-category.medical
   target:

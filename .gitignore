@@ -9,3 +9,4 @@ release/
 dist/
 *.sqlite
 *.sqlite-journal
+electron/update-config.json

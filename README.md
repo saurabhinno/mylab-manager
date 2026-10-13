@@ -66,13 +66,36 @@ In development, SQLite lives at `./data/mylab.sqlite`.
 
 In a packaged app, data is stored under the OS app-data folder (local only):
 
-- **macOS**: `~/Library/Application Support/MyLab/`
+- **macOS**: `~/Library/Application Support/MyLab/` (or `…/mylab/`)
 - **Windows**: `%APPDATA%\MyLab\`
 
 Files:
 
 - `mylab.sqlite` — patients, reports, tests, settings, users
 - `uploads/` — any local upload files
+
+**Updates never wipe this folder** — only app binaries are replaced.
+
+#### Auto-update (internet)
+
+Installed apps check GitHub Releases shortly after launch. When a newer version exists they download it and prompt to restart.
+
+**Ship a new version:**
+
+```bash
+# 1) Bump version in package.json (e.g. 0.2.1)
+# 2) Commit, tag, push:
+git tag v0.2.1
+git push origin v0.2.1
+```
+
+That tag triggers CI to build Windows + macOS and **publish a GitHub Release**. Clients online will pick it up.
+
+Because this repo is **private**, auto-update needs one of:
+
+1. **Recommended for private repos:** create a fine-grained GitHub PAT with **Contents: Read** on `mylab-manager` only, then add repo secret `MYLAB_GH_UPDATE_TOKEN`. CI bakes it into the installer so apps can read Releases.
+2. Or host installers on a public HTTPS folder and set secret `MYLAB_UPDATE_FEED_URL` (generic update feed).
+3. Or make the repo public (no token needed).
 
 #### Build installers
 
@@ -105,7 +128,7 @@ gh run watch
 gh run download --name MyLab-Windows
 ```
 
-Tags matching `v*` (e.g. `v0.2.0`) also trigger a full desktop build.
+Tags matching `v*` (e.g. `v0.2.1`) build **and publish** a GitHub Release for auto-update.
 
 ### Web / Docker (optional)
 

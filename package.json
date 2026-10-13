@@ -12,10 +12,12 @@
     "api:dev": "cd express-api && cross-env DESKTOP=1 DB_DIALECT=sqlite SQLITE_PATH=../data/mylab.sqlite npm run dev",
     "api:build": "cd express-api && npm run build",
     "desktop:dev": "concurrently -k -n api,web,electron -c blue,green,magenta \"npm run api:dev\" \"cross-env NEXT_PUBLIC_API_URL=http://localhost:4000 npm run dev\" \"wait-on http://localhost:4000/health http://localhost:3000 && cross-env MYLAB_DEV_API_PORT=4000 MYLAB_DEV_APP_PORT=3000 electron .\"",
-    "desktop:prepare": "node scripts/prepare-desktop.js",
+    "desktop:prepare": "node scripts/write-update-config.js && node scripts/prepare-desktop.js",
     "desktop:build": "npm run api:build && cross-env NEXT_PUBLIC_API_URL=http://127.0.0.1:47821 npm run build && npm run desktop:prepare && electron-builder --publish never",
     "desktop:build:mac": "npm run api:build && cross-env NEXT_PUBLIC_API_URL=http://127.0.0.1:47821 npm run build && npm run desktop:prepare && electron-builder --mac --publish never",
     "desktop:build:win": "npm run api:build && cross-env NEXT_PUBLIC_API_URL=http://127.0.0.1:47821 npm run build && npm run desktop:prepare && electron-builder --win --publish never",
+    "desktop:publish:mac": "npm run api:build && cross-env NEXT_PUBLIC_API_URL=http://127.0.0.1:47821 npm run build && npm run desktop:prepare && electron-builder --mac --publish always",
+    "desktop:publish:win": "npm run api:build && cross-env NEXT_PUBLIC_API_URL=http://127.0.0.1:47821 npm run build && npm run desktop:prepare && electron-builder --win --publish always",
     "postinstall": "node scripts/ensure-electron.js && (electron-builder install-app-deps || true)"
   },
   "dependencies": {
@@ -27,6 +29,7 @@
     "bcryptjs": "^2.4.3",
     "cardinal": "^2.1.1",
     "cookie": "^0.6.0",
+    "electron-updater": "^6.8.9",
     "js-cookie": "^3.0.5",
     "mysql2": "^3.6.0",
     "next": "14.2.35",
