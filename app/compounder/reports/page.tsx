@@ -222,7 +222,7 @@ export default function CompounderReportsPage() {
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }}>
-      <Sidebar role="doctor" />
+      <Sidebar role="compounder" />
       <Box sx={{ flexGrow: 1, p: { xs: 2, md: 3 }, overflow: "auto", pb: 12 }} id="main-content" tabIndex={-1}>
         {alert && (
           <Alert severity={alert.type} sx={{ mb: 2, borderRadius: 2, fontSize: 15, py: 1 }} onClose={() => setAlert(null)}>

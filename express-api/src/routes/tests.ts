@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { TestDefinition } from "@/models/TestDefinition";
+import { requireDoctor } from "@/lib/auth";
 
 const router = Router();
 
@@ -29,8 +30,8 @@ router.get("/flat", async (req: Request, res: Response) => {
   }
 });
 
-// Create a new test (standalone or panel)
-router.post("/", async (req: Request, res: Response) => {
+// Create a new test (standalone or panel) — doctor only
+router.post("/", requireDoctor, async (req: Request, res: Response) => {
   try {
     const { name, category, sample_type, method, defaultMin, defaultMax, unit, price, report_time, is_panel, parameters } = req.body;
 
@@ -102,8 +103,9 @@ router.post("/", async (req: Request, res: Response) => {
   }
 });
 
-// Update a test
-router.put("/:id", async (req: Request, res: Response) => {
+// Update a test — doctor only
+// Upsert parameters in place so report_items FKs are not broken.
+router.put("/:id", requireDoctor, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { name, category, sample_type, method, defaultMin, defaultMax, unit, price, report_time, is_panel, parameters } = req.body;
@@ -122,7 +124,7 @@ router.put("/:id", async (req: Request, res: Response) => {
     if (!sample_type || !sample_type.trim()) {
       return res.status(400).json({ error: "Sample type is required." });
     }
-    if (price == null || price < 0) {
+    if (price == null || Number(price) < 0) {
       return res.status(400).json({ error: "Valid price is required." });
     }
 
@@ -139,43 +141,89 @@ router.put("/:id", async (req: Request, res: Response) => {
     test.default_min = is_panel ? null : (defaultMin ?? null);
     test.default_max = is_panel ? null : (defaultMax ?? null);
     test.unit = is_panel ? null : (unit?.trim() || null);
-    test.price = price;
+    test.price = Number(price);
     test.report_time = report_time?.trim() || null;
     test.is_panel = !!is_panel;
     await test.save();
 
-    // If panel, update parameters
     if (is_panel && parameters && Array.isArray(parameters)) {
-      // Delete old parameters
-      await TestDefinition.destroy({ where: { parent_id: test.id } });
+      const existingParams = await TestDefinition.findAll({
+        where: { parent_id: test.id },
+      });
+      const keepIds = new Set<number>();
 
-      // Create new parameters
       for (let i = 0; i < parameters.length; i++) {
         const p = parameters[i];
-        if (p.name?.trim()) {
-          await TestDefinition.create({
-            name: p.name.trim(),
-            category: category.trim(),
-            sample_type: sample_type.trim(),
-            method: p.method?.trim() || method?.trim() || null,
-            default_min: p.defaultMin ?? null,
-            default_max: p.defaultMax ?? null,
-            unit: p.unit?.trim() || null,
-            price: 0,
-            report_time: report_time?.trim() || null,
-            is_panel: false,
-            parent_id: test.id,
-            display_order: i + 1,
-          });
+        if (!p?.name?.trim()) continue;
+
+        const fields = {
+          name: String(p.name).trim(),
+          category: category.trim(),
+          sample_type: sample_type.trim(),
+          method: p.method?.trim() || method?.trim() || null,
+          default_min: p.defaultMin ?? p.default_min ?? null,
+          default_max: p.defaultMax ?? p.default_max ?? null,
+          unit: p.unit?.trim?.() ? p.unit.trim() : p.unit || null,
+          price: 0,
+          report_time: report_time?.trim() || null,
+          is_panel: false,
+          parent_id: test.id,
+          display_order: i + 1,
+        };
+
+        const paramId = p.id != null ? Number(p.id) : null;
+        const row =
+          paramId && existingParams.find((e) => e.id === paramId)
+            ? existingParams.find((e) => e.id === paramId)!
+            : null;
+
+        if (row) {
+          Object.assign(row, fields);
+          await row.save();
+          keepIds.add(row.id);
+        } else {
+          const created = await TestDefinition.create(fields);
+          keepIds.add(created.id);
+        }
+      }
+
+      for (const old of existingParams) {
+        if (keepIds.has(old.id)) continue;
+        try {
+          await old.destroy();
+        } catch (err) {
+          // Still referenced by report_items — detach from panel instead of failing
+          console.warn(
+            `Could not delete parameter #${old.id}; detaching from panel`,
+            err
+          );
+          old.parent_id = null;
+          await old.save();
         }
       }
     } else if (!is_panel) {
-      // If changed from panel to standalone, remove children
-      await TestDefinition.destroy({ where: { parent_id: test.id } });
+      const children = await TestDefinition.findAll({
+        where: { parent_id: test.id },
+      });
+      for (const child of children) {
+        try {
+          await child.destroy();
+        } catch {
+          child.parent_id = null;
+          await child.save();
+        }
+      }
     }
 
     const result = await TestDefinition.findByPk(test.id, {
-      include: [{ model: TestDefinition, as: "parameters" }],
+      include: [
+        {
+          model: TestDefinition,
+          as: "parameters",
+          separate: true,
+          order: [["display_order", "ASC"]],
+        },
+      ],
     });
 
     return res.json(result);
@@ -185,16 +233,32 @@ router.put("/:id", async (req: Request, res: Response) => {
   }
 });
 
-// Delete a test
-router.delete("/:id", async (req: Request, res: Response) => {
+// Delete a test — doctor only
+router.delete("/:id", requireDoctor, async (req: Request, res: Response) => {
   try {
     const test = await TestDefinition.findByPk(req.params.id);
     if (!test) {
       return res.status(404).json({ error: "Test not found." });
     }
-    // Delete children if panel
-    await TestDefinition.destroy({ where: { parent_id: test.id } });
-    await test.destroy();
+    const children = await TestDefinition.findAll({
+      where: { parent_id: test.id },
+    });
+    for (const child of children) {
+      try {
+        await child.destroy();
+      } catch {
+        child.parent_id = null;
+        await child.save();
+      }
+    }
+    try {
+      await test.destroy();
+    } catch (err) {
+      console.error(err);
+      return res.status(400).json({
+        error: "Cannot delete this test because it is used in existing reports.",
+      });
+    }
     return res.json({ success: true });
   } catch (error) {
     console.error(error);

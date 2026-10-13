@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { LabSettings } from "@/models/LabSettings";
+import { requireDoctor } from "@/lib/auth";
 
 const router = Router();
 
@@ -13,7 +14,7 @@ router.get("/", async (req: Request, res: Response) => {
   }
 });
 
-router.put("/", async (req: Request, res: Response) => {
+router.put("/", requireDoctor, async (req: Request, res: Response) => {
   try {
     const { lab_name, address, phone, email, header_text, footer_text, logo_image } = req.body;
     let settings = await LabSettings.findOne();

@@ -99,13 +99,14 @@ export default function DoctorTestsPage() {
     setUnit(test.unit || "");
     setReportTime(test.report_time || "");
     setIsPanel(test.is_panel);
-    setParameters(test.parameters?.map((p) => ({
+    setParameters(test.parameters?.map((p, i) => ({
+      id: p.id,
       name: p.name,
       unit: p.unit,
       default_min: p.default_min,
       default_max: p.default_max,
       method: p.method,
-      display_order: p.display_order,
+      display_order: p.display_order ?? i + 1,
     })) || []);
     setEditingId(test.id);
     setErrors({});
@@ -118,7 +119,17 @@ export default function DoctorTestsPage() {
   }
 
   function addParameter() {
-    setParameters([...parameters, { name: "", unit: null, default_min: null, default_max: null, method: null, display_order: parameters.length + 1 }]);
+    setParameters((prev) => [
+      ...prev,
+      {
+        name: "",
+        unit: null,
+        default_min: null,
+        default_max: null,
+        method: null,
+        display_order: prev.length + 1,
+      },
+    ]);
   }
 
   function removeParameter(idx: number) {
@@ -170,7 +181,8 @@ export default function DoctorTestsPage() {
     }
 
     if (isPanel) {
-      payload.parameters = parameters.map((p, i) => ({
+      payload.parameters = parameters.map((p) => ({
+        id: p.id,
         name: p.name,
         unit: p.unit || null,
         defaultMin: p.default_min,

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { User } from "@/models/User";
 import { verifyPassword, hashPassword, setSessionCookie, clearSessionCookie, getUserIdFromCookie } from "@/lib/session";
+import { requireDoctor } from "@/lib/auth";
 
 const router = Router();
 
@@ -89,8 +90,8 @@ router.get("/me", async (req: Request, res: Response) => {
   }
 });
 
-// Get all users (staff list)
-router.get("/users", async (req: Request, res: Response) => {
+// Get all users (staff list) — doctor only
+router.get("/users", requireDoctor, async (req: Request, res: Response) => {
   try {
     const users = await User.findAll({
       attributes: ["id", "email", "name", "role", "createdAt"],

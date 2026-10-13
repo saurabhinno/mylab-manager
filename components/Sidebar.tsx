@@ -19,14 +19,15 @@ import { apiRequest } from '@/lib/api';
 import LangSwitcher from '@/components/LangSwitcher';
 import ChangePasswordDialog from '@/components/ChangePasswordDialog';
 import { useI18n } from '@/lib/i18n';
+import { useUser } from '@/lib/useUser';
 
 const DRAWER_WIDTH = 240;
 const COLLAPSED_WIDTH = 64;
 
 interface NavItem { label: string; href: string; icon: React.ReactNode; }
-interface SidebarProps { role: 'doctor' | 'compounder'; email?: string; }
+interface SidebarProps { role?: 'doctor' | 'compounder'; email?: string; }
 
-export default function Sidebar({ role, email }: SidebarProps) {
+export default function Sidebar({ role: roleProp, email: emailProp }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const theme = useTheme();
@@ -34,24 +35,37 @@ export default function Sidebar({ role, email }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [viewAs, setViewAs] = useState<'doctor' | 'compounder'>(role);
   const [pwOpen, setPwOpen] = useState(false);
   const { t } = useI18n();
+  const { user } = useUser();
   const isDesktop = typeof window !== 'undefined' && !!(window as any).mylab?.updates;
+
+  // Prefer live session role so compounders never get the doctor nav by mistake
+  const role = user?.role || roleProp || 'compounder';
+  const email = user?.email || emailProp;
+  const isDoctor = role === 'doctor';
+
+  const [viewAs, setViewAs] = useState<'doctor' | 'compounder'>(
+    pathname.startsWith('/compounder') ? 'compounder' : isDoctor ? 'doctor' : 'compounder'
+  );
 
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-collapsed');
     if (saved === '1') setCollapsed(true);
   }, []);
 
-  // Detect current view based on pathname
+  // Detect current view based on pathname; compounders are locked to compounder view
   useEffect(() => {
+    if (!isDoctor) {
+      setViewAs('compounder');
+      return;
+    }
     if (pathname.startsWith('/compounder')) {
       setViewAs('compounder');
     } else if (pathname.startsWith('/doctor')) {
       setViewAs('doctor');
     }
-  }, [pathname]);
+  }, [pathname, isDoctor]);
 
   function toggleCollapse() {
     const next = !collapsed;
@@ -60,6 +74,7 @@ export default function Sidebar({ role, email }: SidebarProps) {
   }
 
   function switchRole() {
+    if (!isDoctor) return;
     if (viewAs === 'doctor') {
       router.push('/compounder/reports');
     } else {
@@ -82,7 +97,7 @@ export default function Sidebar({ role, email }: SidebarProps) {
     { label: t('nav.compounder_reports'), href: '/compounder/reports', icon: <BiotechOutlined /> },
   ];
 
-  const nav = viewAs === 'doctor' ? doctorNav : compounderNav;
+  const nav = isDoctor && viewAs === 'doctor' ? doctorNav : compounderNav;
   const currentWidth = collapsed && !isMobile ? COLLAPSED_WIDTH : DRAWER_WIDTH;
 
   async function handleLogout() {
@@ -132,8 +147,8 @@ export default function Sidebar({ role, email }: SidebarProps) {
 
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)', mx: collapsed ? 1 : 2 }} />
 
-      {/* Role switcher for doctors */}
-      {role === 'doctor' && (
+      {/* Role switcher for doctors only */}
+      {isDoctor && (
         <Box sx={{ px: collapsed ? 0.8 : 1.5, pt: 1.5 }}>
           <Tooltip title={collapsed ? (viewAs === 'doctor' ? t('nav.switch_to_compounder') : t('nav.switch_to_doctor')) : ''} placement="right">
             <ListItemButton
