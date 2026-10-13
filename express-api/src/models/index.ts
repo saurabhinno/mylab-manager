@@ -7,8 +7,29 @@ import { ReportItem } from "@/models/ReportItem";
 import { LabSettings } from "@/models/LabSettings";
 import { hashPassword } from "@/lib/session";
 
-// Panel tests with their parameters
-const panelTests = [
+type SeedParam = {
+  name: string;
+  unit: string | null;
+  default_min: number | null;
+  default_max: number | null;
+  method: string | null;
+  display_order: number;
+};
+
+type SeedPanel = {
+  panel: {
+    name: string;
+    category: string;
+    sample_type: string;
+    method: string;
+    price: number;
+    report_time: string;
+  };
+  parameters: SeedParam[];
+};
+
+// Panel tests with their parameters (full common Indian lab catalogues)
+const panelTests: SeedPanel[] = [
   {
     panel: { name: "Complete Blood Count (CBC)", category: "Hematology", sample_type: "Blood (EDTA)", method: "Automated Cell Counter", price: 350, report_time: "Same Day" },
     parameters: [
@@ -19,12 +40,22 @@ const panelTests = [
       { name: "MCV", unit: "fL", default_min: 80, default_max: 100, method: "Calculated", display_order: 5 },
       { name: "MCH", unit: "pg", default_min: 27, default_max: 32, method: "Calculated", display_order: 6 },
       { name: "MCHC", unit: "g/dL", default_min: 32, default_max: 36, method: "Calculated", display_order: 7 },
-      { name: "Platelet Count", unit: "lakhs/µL", default_min: 1.5, default_max: 4.0, method: "Automated", display_order: 8 },
-      { name: "Neutrophils", unit: "%", default_min: 40, default_max: 70, method: "Differential", display_order: 9 },
-      { name: "Lymphocytes", unit: "%", default_min: 20, default_max: 40, method: "Differential", display_order: 10 },
-      { name: "Eosinophils", unit: "%", default_min: 1, default_max: 6, method: "Differential", display_order: 11 },
-      { name: "Monocytes", unit: "%", default_min: 2, default_max: 10, method: "Differential", display_order: 12 },
-      { name: "Basophils", unit: "%", default_min: 0, default_max: 1, method: "Differential", display_order: 13 },
+      { name: "RDW-CV", unit: "%", default_min: 11, default_max: 15, method: "Automated", display_order: 8 },
+      { name: "RDW-SD", unit: "fL", default_min: 35, default_max: 56, method: "Automated", display_order: 9 },
+      { name: "Platelet Count", unit: "lakhs/µL", default_min: 1.5, default_max: 4.0, method: "Automated", display_order: 10 },
+      { name: "MPV", unit: "fL", default_min: 7.5, default_max: 11.5, method: "Automated", display_order: 11 },
+      { name: "PDW", unit: "%", default_min: 9, default_max: 17, method: "Automated", display_order: 12 },
+      { name: "PCT", unit: "%", default_min: 0.15, default_max: 0.40, method: "Automated", display_order: 13 },
+      { name: "Neutrophils", unit: "%", default_min: 40, default_max: 70, method: "Differential", display_order: 14 },
+      { name: "Lymphocytes", unit: "%", default_min: 20, default_max: 40, method: "Differential", display_order: 15 },
+      { name: "Eosinophils", unit: "%", default_min: 1, default_max: 6, method: "Differential", display_order: 16 },
+      { name: "Monocytes", unit: "%", default_min: 2, default_max: 10, method: "Differential", display_order: 17 },
+      { name: "Basophils", unit: "%", default_min: 0, default_max: 1, method: "Differential", display_order: 18 },
+      { name: "Absolute Neutrophil Count", unit: "cells/µL", default_min: 2000, default_max: 7000, method: "Calculated", display_order: 19 },
+      { name: "Absolute Lymphocyte Count", unit: "cells/µL", default_min: 1000, default_max: 3000, method: "Calculated", display_order: 20 },
+      { name: "Absolute Eosinophil Count", unit: "cells/µL", default_min: 40, default_max: 440, method: "Calculated", display_order: 21 },
+      { name: "Absolute Monocyte Count", unit: "cells/µL", default_min: 200, default_max: 1000, method: "Calculated", display_order: 22 },
+      { name: "Absolute Basophil Count", unit: "cells/µL", default_min: 0, default_max: 100, method: "Calculated", display_order: 23 },
     ],
   },
   {
@@ -35,7 +66,9 @@ const panelTests = [
       { name: "HDL Cholesterol", unit: "mg/dL", default_min: 40, default_max: 60, method: "Direct", display_order: 3 },
       { name: "LDL Cholesterol", unit: "mg/dL", default_min: 0, default_max: 100, method: "Calculated", display_order: 4 },
       { name: "VLDL Cholesterol", unit: "mg/dL", default_min: 5, default_max: 40, method: "Calculated", display_order: 5 },
-      { name: "Total Cholesterol/HDL Ratio", unit: "", default_min: 0, default_max: 5, method: "Calculated", display_order: 6 },
+      { name: "Non-HDL Cholesterol", unit: "mg/dL", default_min: 0, default_max: 130, method: "Calculated", display_order: 6 },
+      { name: "Total Cholesterol/HDL Ratio", unit: "", default_min: 0, default_max: 5, method: "Calculated", display_order: 7 },
+      { name: "LDL/HDL Ratio", unit: "", default_min: 0, default_max: 3.5, method: "Calculated", display_order: 8 },
     ],
   },
   {
@@ -47,10 +80,12 @@ const panelTests = [
       { name: "SGOT (AST)", unit: "U/L", default_min: 5, default_max: 40, method: "IFCC", display_order: 4 },
       { name: "SGPT (ALT)", unit: "U/L", default_min: 7, default_max: 56, method: "IFCC", display_order: 5 },
       { name: "Alkaline Phosphatase (ALP)", unit: "U/L", default_min: 44, default_max: 147, method: "IFCC", display_order: 6 },
-      { name: "Total Protein", unit: "g/dL", default_min: 6.0, default_max: 8.3, method: "Biuret", display_order: 7 },
-      { name: "Albumin", unit: "g/dL", default_min: 3.5, default_max: 5.5, method: "BCG", display_order: 8 },
-      { name: "Globulin", unit: "g/dL", default_min: 2.0, default_max: 3.5, method: "Calculated", display_order: 9 },
-      { name: "A/G Ratio", unit: "", default_min: 1.0, default_max: 2.5, method: "Calculated", display_order: 10 },
+      { name: "GGT (Gamma GT)", unit: "U/L", default_min: 0, default_max: 55, method: "IFCC", display_order: 7 },
+      { name: "LDH", unit: "U/L", default_min: 140, default_max: 280, method: "IFCC", display_order: 8 },
+      { name: "Total Protein", unit: "g/dL", default_min: 6.0, default_max: 8.3, method: "Biuret", display_order: 9 },
+      { name: "Albumin", unit: "g/dL", default_min: 3.5, default_max: 5.5, method: "BCG", display_order: 10 },
+      { name: "Globulin", unit: "g/dL", default_min: 2.0, default_max: 3.5, method: "Calculated", display_order: 11 },
+      { name: "A/G Ratio", unit: "", default_min: 1.0, default_max: 2.5, method: "Calculated", display_order: 12 },
     ],
   },
   {
@@ -60,10 +95,14 @@ const panelTests = [
       { name: "Serum Creatinine", unit: "mg/dL", default_min: 0.6, default_max: 1.2, method: "Jaffe's", display_order: 2 },
       { name: "Uric Acid", unit: "mg/dL", default_min: 3.5, default_max: 7.2, method: "Uricase", display_order: 3 },
       { name: "BUN (Blood Urea Nitrogen)", unit: "mg/dL", default_min: 7, default_max: 20, method: "Calculated", display_order: 4 },
-      { name: "Sodium (Na+)", unit: "mEq/L", default_min: 136, default_max: 145, method: "ISE", display_order: 5 },
-      { name: "Potassium (K+)", unit: "mEq/L", default_min: 3.5, default_max: 5.1, method: "ISE", display_order: 6 },
-      { name: "Chloride (Cl-)", unit: "mEq/L", default_min: 98, default_max: 106, method: "ISE", display_order: 7 },
-      { name: "Calcium", unit: "mg/dL", default_min: 8.5, default_max: 10.5, method: "Arsenazo III", display_order: 8 },
+      { name: "BUN/Creatinine Ratio", unit: "", default_min: 10, default_max: 20, method: "Calculated", display_order: 5 },
+      { name: "eGFR", unit: "mL/min/1.73m²", default_min: 90, default_max: 120, method: "CKD-EPI", display_order: 6 },
+      { name: "Sodium (Na+)", unit: "mEq/L", default_min: 136, default_max: 145, method: "ISE", display_order: 7 },
+      { name: "Potassium (K+)", unit: "mEq/L", default_min: 3.5, default_max: 5.1, method: "ISE", display_order: 8 },
+      { name: "Chloride (Cl-)", unit: "mEq/L", default_min: 98, default_max: 106, method: "ISE", display_order: 9 },
+      { name: "Calcium", unit: "mg/dL", default_min: 8.5, default_max: 10.5, method: "Arsenazo III", display_order: 10 },
+      { name: "Phosphorus", unit: "mg/dL", default_min: 2.5, default_max: 4.5, method: "Phosphomolybdate", display_order: 11 },
+      { name: "Magnesium", unit: "mg/dL", default_min: 1.7, default_max: 2.2, method: "Xylidyl Blue", display_order: 12 },
     ],
   },
   {
@@ -71,7 +110,9 @@ const panelTests = [
     parameters: [
       { name: "T3 (Triiodothyronine)", unit: "ng/dL", default_min: 80, default_max: 200, method: "CLIA", display_order: 1 },
       { name: "T4 (Thyroxine)", unit: "µg/dL", default_min: 4.5, default_max: 12, method: "CLIA", display_order: 2 },
-      { name: "TSH (Thyroid Stimulating Hormone)", unit: "µIU/mL", default_min: 0.4, default_max: 4.0, method: "CLIA", display_order: 3 },
+      { name: "Free T3 (FT3)", unit: "pg/mL", default_min: 2.3, default_max: 4.2, method: "CLIA", display_order: 3 },
+      { name: "Free T4 (FT4)", unit: "ng/dL", default_min: 0.8, default_max: 1.8, method: "CLIA", display_order: 4 },
+      { name: "TSH (Thyroid Stimulating Hormone)", unit: "µIU/mL", default_min: 0.4, default_max: 4.0, method: "CLIA", display_order: 5 },
     ],
   },
   {
@@ -79,24 +120,35 @@ const panelTests = [
     parameters: [
       { name: "Color", unit: null, default_min: null, default_max: null, method: "Visual", display_order: 1 },
       { name: "Appearance", unit: null, default_min: null, default_max: null, method: "Visual", display_order: 2 },
-      { name: "pH", unit: "", default_min: 4.5, default_max: 8.0, method: "Dipstick", display_order: 3 },
-      { name: "Specific Gravity", unit: "", default_min: 1.005, default_max: 1.030, method: "Dipstick", display_order: 4 },
-      { name: "Protein", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 5 },
-      { name: "Glucose", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 6 },
-      { name: "Pus Cells", unit: "/HPF", default_min: 0, default_max: 5, method: "Microscopy", display_order: 7 },
-      { name: "RBCs", unit: "/HPF", default_min: 0, default_max: 2, method: "Microscopy", display_order: 8 },
-      { name: "Epithelial Cells", unit: "/HPF", default_min: null, default_max: null, method: "Microscopy", display_order: 9 },
-      { name: "Casts", unit: null, default_min: null, default_max: null, method: "Microscopy", display_order: 10 },
-      { name: "Crystals", unit: null, default_min: null, default_max: null, method: "Microscopy", display_order: 11 },
+      { name: "Volume", unit: "mL", default_min: null, default_max: null, method: "Visual", display_order: 3 },
+      { name: "Odour", unit: null, default_min: null, default_max: null, method: "Visual", display_order: 4 },
+      { name: "pH", unit: "", default_min: 4.5, default_max: 8.0, method: "Dipstick", display_order: 5 },
+      { name: "Specific Gravity", unit: "", default_min: 1.005, default_max: 1.030, method: "Dipstick", display_order: 6 },
+      { name: "Protein", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 7 },
+      { name: "Glucose", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 8 },
+      { name: "Ketones", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 9 },
+      { name: "Bilirubin", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 10 },
+      { name: "Urobilinogen", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 11 },
+      { name: "Blood", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 12 },
+      { name: "Nitrite", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 13 },
+      { name: "Leukocyte Esterase", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 14 },
+      { name: "Pus Cells", unit: "/HPF", default_min: 0, default_max: 5, method: "Microscopy", display_order: 15 },
+      { name: "RBCs", unit: "/HPF", default_min: 0, default_max: 2, method: "Microscopy", display_order: 16 },
+      { name: "Epithelial Cells", unit: "/HPF", default_min: null, default_max: null, method: "Microscopy", display_order: 17 },
+      { name: "Casts", unit: null, default_min: null, default_max: null, method: "Microscopy", display_order: 18 },
+      { name: "Crystals", unit: null, default_min: null, default_max: null, method: "Microscopy", display_order: 19 },
+      { name: "Bacteria", unit: null, default_min: null, default_max: null, method: "Microscopy", display_order: 20 },
+      { name: "Yeast", unit: null, default_min: null, default_max: null, method: "Microscopy", display_order: 21 },
+      { name: "Amorphous Deposits", unit: null, default_min: null, default_max: null, method: "Microscopy", display_order: 22 },
     ],
   },
   {
     panel: { name: "Widal Test", category: "Serology", sample_type: "Serum", method: "Slide Agglutination", price: 200, report_time: "Same Day" },
     parameters: [
-      { name: "S. Typhi O", unit: null, default_min: null, default_max: null, method: "Agglutination", display_order: 1 },
-      { name: "S. Typhi H", unit: null, default_min: null, default_max: null, method: "Agglutination", display_order: 2 },
-      { name: "S. Paratyphi AH", unit: null, default_min: null, default_max: null, method: "Agglutination", display_order: 3 },
-      { name: "S. Paratyphi BH", unit: null, default_min: null, default_max: null, method: "Agglutination", display_order: 4 },
+      { name: "S. Typhi O", unit: "Titre", default_min: null, default_max: null, method: "Agglutination", display_order: 1 },
+      { name: "S. Typhi H", unit: "Titre", default_min: null, default_max: null, method: "Agglutination", display_order: 2 },
+      { name: "S. Paratyphi AH", unit: "Titre", default_min: null, default_max: null, method: "Agglutination", display_order: 3 },
+      { name: "S. Paratyphi BH", unit: "Titre", default_min: null, default_max: null, method: "Agglutination", display_order: 4 },
     ],
   },
   {
@@ -104,8 +156,46 @@ const panelTests = [
     parameters: [
       { name: "Serum Iron", unit: "µg/dL", default_min: 60, default_max: 170, method: "Colorimetric", display_order: 1 },
       { name: "TIBC", unit: "µg/dL", default_min: 250, default_max: 370, method: "Colorimetric", display_order: 2 },
-      { name: "Transferrin Saturation", unit: "%", default_min: 20, default_max: 50, method: "Calculated", display_order: 3 },
-      { name: "Ferritin", unit: "ng/mL", default_min: 12, default_max: 300, method: "CLIA", display_order: 4 },
+      { name: "UIBC", unit: "µg/dL", default_min: 150, default_max: 300, method: "Calculated", display_order: 3 },
+      { name: "Transferrin Saturation", unit: "%", default_min: 20, default_max: 50, method: "Calculated", display_order: 4 },
+      { name: "Ferritin", unit: "ng/mL", default_min: 12, default_max: 300, method: "CLIA", display_order: 5 },
+    ],
+  },
+  {
+    panel: { name: "Electrolyte Panel", category: "Biochemistry", sample_type: "Serum", method: "ISE", price: 400, report_time: "Same Day" },
+    parameters: [
+      { name: "Sodium (Na+)", unit: "mEq/L", default_min: 136, default_max: 145, method: "ISE", display_order: 1 },
+      { name: "Potassium (K+)", unit: "mEq/L", default_min: 3.5, default_max: 5.1, method: "ISE", display_order: 2 },
+      { name: "Chloride (Cl-)", unit: "mEq/L", default_min: 98, default_max: 106, method: "ISE", display_order: 3 },
+      { name: "Bicarbonate (HCO3-)", unit: "mEq/L", default_min: 22, default_max: 28, method: "Enzymatic", display_order: 4 },
+      { name: "Anion Gap", unit: "mEq/L", default_min: 8, default_max: 16, method: "Calculated", display_order: 5 },
+      { name: "Calcium", unit: "mg/dL", default_min: 8.5, default_max: 10.5, method: "Arsenazo III", display_order: 6 },
+      { name: "Magnesium", unit: "mg/dL", default_min: 1.7, default_max: 2.2, method: "Xylidyl Blue", display_order: 7 },
+      { name: "Phosphorus", unit: "mg/dL", default_min: 2.5, default_max: 4.5, method: "Phosphomolybdate", display_order: 8 },
+    ],
+  },
+  {
+    panel: { name: "Coagulation Profile", category: "Hematology", sample_type: "Blood (Citrate)", method: "Clot-based", price: 550, report_time: "Same Day" },
+    parameters: [
+      { name: "Prothrombin Time (PT)", unit: "sec", default_min: 11, default_max: 13.5, method: "Clot-based", display_order: 1 },
+      { name: "Control PT", unit: "sec", default_min: 11, default_max: 13.5, method: "Clot-based", display_order: 2 },
+      { name: "INR", unit: "", default_min: 0.8, default_max: 1.2, method: "Calculated", display_order: 3 },
+      { name: "aPTT", unit: "sec", default_min: 25, default_max: 35, method: "Clot-based", display_order: 4 },
+      { name: "Control aPTT", unit: "sec", default_min: 25, default_max: 35, method: "Clot-based", display_order: 5 },
+      { name: "Bleeding Time (BT)", unit: "min", default_min: 2, default_max: 7, method: "Ivy", display_order: 6 },
+      { name: "Clotting Time (CT)", unit: "min", default_min: 4, default_max: 10, method: "Lee-White", display_order: 7 },
+    ],
+  },
+  {
+    panel: { name: "Diabetic Profile", category: "Biochemistry", sample_type: "Blood (Fluoride/EDTA)", method: "Multiple", price: 700, report_time: "Same Day" },
+    parameters: [
+      { name: "Blood Sugar Fasting (FBS)", unit: "mg/dL", default_min: 70, default_max: 100, method: "GOD-POD", display_order: 1 },
+      { name: "Blood Sugar PP (PPBS)", unit: "mg/dL", default_min: 70, default_max: 140, method: "GOD-POD", display_order: 2 },
+      { name: "Blood Sugar Random (RBS)", unit: "mg/dL", default_min: 70, default_max: 140, method: "GOD-POD", display_order: 3 },
+      { name: "HbA1c (Glycated Hemoglobin)", unit: "%", default_min: 4, default_max: 5.6, method: "HPLC", display_order: 4 },
+      { name: "Estimated Average Glucose (eAG)", unit: "mg/dL", default_min: 70, default_max: 126, method: "Calculated", display_order: 5 },
+      { name: "Urine Sugar", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 6 },
+      { name: "Urine Ketones", unit: null, default_min: null, default_max: null, method: "Dipstick", display_order: 7 },
     ],
   },
 ];
@@ -139,6 +229,110 @@ const standaloneTests = [
   { name: "Vitamin B12", category: "Vitamins", sample_type: "Serum", unit: "pg/mL", default_min: 200, default_max: 900, method: "CLIA", price: 700, report_time: "Next Day" },
   { name: "Folic Acid", category: "Vitamins", sample_type: "Serum", unit: "ng/mL", default_min: 3, default_max: 17, method: "CLIA", price: 600, report_time: "Next Day" },
 ];
+
+/** Add missing panels/parameters from the seed catalogue without deleting user data. */
+async function ensureCatalogueUpToDate() {
+  let addedPanels = 0;
+  let addedParams = 0;
+
+  // Drop accidental placeholder params left from failed edits
+  const junk = await TestDefinition.findAll({
+    where: { is_panel: false },
+  });
+  for (const row of junk) {
+    if (/^New Param\b/i.test(row.name)) {
+      try {
+        await row.destroy();
+      } catch {
+        row.parent_id = null;
+        await row.save();
+      }
+    }
+  }
+
+  for (const { panel, parameters } of panelTests) {
+    let panelRow = await TestDefinition.findOne({
+      where: { name: panel.name, parent_id: null, is_panel: true },
+    });
+
+    if (!panelRow) {
+      panelRow = await TestDefinition.create({
+        name: panel.name,
+        category: panel.category,
+        sample_type: panel.sample_type,
+        method: panel.method,
+        price: panel.price,
+        report_time: panel.report_time,
+        is_panel: true,
+        parent_id: null,
+        display_order: 0,
+        unit: null,
+        default_min: null,
+        default_max: null,
+      } as any);
+      addedPanels++;
+    }
+
+    const existingParams = await TestDefinition.findAll({
+      where: { parent_id: panelRow.id },
+    });
+    const byName = new Map(
+      existingParams.map((p) => [p.name.trim().toLowerCase(), p])
+    );
+
+    for (const param of parameters) {
+      const key = param.name.trim().toLowerCase();
+      const existing = byName.get(key);
+      if (existing) {
+        // Keep display order / ranges in sync with catalogue
+        existing.display_order = param.display_order;
+        existing.unit = param.unit || null;
+        existing.default_min = param.default_min ?? null;
+        existing.default_max = param.default_max ?? null;
+        existing.method = param.method || panel.method;
+        await existing.save();
+        continue;
+      }
+
+      await TestDefinition.create({
+        name: param.name,
+        category: panel.category,
+        sample_type: panel.sample_type,
+        method: param.method || panel.method,
+        price: 0,
+        report_time: panel.report_time,
+        is_panel: false,
+        parent_id: panelRow.id,
+        display_order: param.display_order,
+        unit: param.unit || null,
+        default_min: param.default_min ?? null,
+        default_max: param.default_max ?? null,
+      } as any);
+      addedParams++;
+    }
+  }
+
+  for (const test of standaloneTests) {
+    const exists = await TestDefinition.findOne({
+      where: { name: test.name, parent_id: null, is_panel: false },
+    });
+    if (!exists) {
+      await TestDefinition.create({
+        ...test,
+        is_panel: false,
+        parent_id: null,
+        display_order: 0,
+      } as any);
+      addedParams++;
+    }
+  }
+
+  if (addedPanels || addedParams) {
+    console.log(
+      `Catalogue sync: +${addedPanels} panels, +${addedParams} parameters`
+    );
+  }
+}
 
 export const initDatabase = async () => {
   await sequelize.authenticate();
@@ -221,6 +415,9 @@ export const initDatabase = async () => {
     }
 
     console.log(`Seeded ${panelTests.length} panel tests and ${standaloneTests.length} standalone tests`);
+  } else {
+    // Existing DBs: add any missing panels/parameters without wiping reports
+    await ensureCatalogueUpToDate();
   }
 
   // Seed default lab settings
