@@ -3,7 +3,13 @@ const path = require("path");
 const fs = require("fs");
 const http = require("http");
 const { spawn } = require("child_process");
-const { setupAutoUpdater, checkForUpdatesManual } = require("./updater");
+const {
+  setupAutoUpdater,
+  checkForUpdatesManual,
+  downloadUpdate,
+  installUpdate,
+  getStatus: getUpdateStatus,
+} = require("./updater");
 const { createDriveBackup } = require("./drive-backup");
 
 const API_PORT = process.env.MYLAB_API_PORT || "47821";
@@ -261,7 +267,15 @@ function initDrive() {
 
   drive.startSchedule();
 
+  ipcMain.handle("updates:getStatus", async () => getUpdateStatus());
   ipcMain.handle("updates:check", async () => checkForUpdatesManual());
+  ipcMain.handle("updates:download", async () => downloadUpdate());
+  ipcMain.handle("updates:install", async () => {
+    // Stop API/Next children so quitAndInstall can actually exit on macOS.
+    if (drive) drive.stopSchedule();
+    stopChildren();
+    return installUpdate();
+  });
   ipcMain.handle("updates:getVersion", async () => app.getVersion());
 }
 
@@ -297,7 +311,12 @@ app.whenReady().then(async () => {
     log(`Services ready, opening ${appUrl}`);
     createWindow(appUrl);
     await maybeAutoRestoreFromDrive();
-    setupAutoUpdater(log);
+    setupAutoUpdater(log, {
+      beforeInstall: () => {
+        if (drive) drive.stopSchedule();
+        stopChildren();
+      },
+    });
   } catch (err) {
     await showStartupError(err);
     app.quit();

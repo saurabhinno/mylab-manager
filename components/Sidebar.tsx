@@ -35,7 +35,6 @@ export default function Sidebar({ role, email }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [viewAs, setViewAs] = useState<'doctor' | 'compounder'>(role);
-  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const { t } = useI18n();
   const isDesktop = typeof window !== 'undefined' && !!(window as any).mylab?.updates;
@@ -75,6 +74,7 @@ export default function Sidebar({ role, email }: SidebarProps) {
     { label: t('nav.staff'), href: '/doctor/staff', icon: <PeopleOutlined /> },
     { label: t('nav.settings'), href: '/doctor/settings', icon: <SettingsOutlined /> },
     { label: t('nav.cloud'), href: '/doctor/cloud', icon: <CloudOutlined /> },
+    ...(isDesktop ? [{ label: t('nav.updates'), href: '/doctor/updates', icon: <SystemUpdateAltOutlined /> }] : []),
     { label: t('nav.profile'), href: '/doctor/profile', icon: <PersonOutlined /> },
   ];
 
@@ -91,15 +91,9 @@ export default function Sidebar({ role, email }: SidebarProps) {
     router.push('/login');
   }
 
-  async function handleCheckUpdate() {
+  function handleCheckUpdate() {
     setAnchorEl(null);
-    if (!(window as any).mylab?.updates?.check) return;
-    setCheckingUpdate(true);
-    try {
-      await (window as any).mylab.updates.check();
-    } finally {
-      setCheckingUpdate(false);
-    }
+    router.push('/doctor/updates');
   }
 
   const drawerContent = (
@@ -229,9 +223,9 @@ export default function Sidebar({ role, email }: SidebarProps) {
           {t('password.change_title')}
         </MenuItem>
         {isDesktop && (
-          <MenuItem onClick={handleCheckUpdate} disabled={checkingUpdate} sx={{ gap: 1.5, fontSize: 14 }}>
+          <MenuItem onClick={handleCheckUpdate} sx={{ gap: 1.5, fontSize: 14 }}>
             <SystemUpdateAltOutlined sx={{ fontSize: 18 }} />
-            {checkingUpdate ? t('nav.checking_update') : t('nav.check_update')}
+            {t('nav.check_update')}
           </MenuItem>
         )}
         <MenuItem onClick={handleLogout} sx={{ gap: 1.5, fontSize: 14 }}>
