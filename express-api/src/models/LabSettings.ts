@@ -10,6 +10,9 @@ export class LabSettings extends Model {
   declare logo_path: string | null;
   declare header_text: string | null;
   declare footer_text: string | null;
+  /** Built-in test catalogue applied once; lab edits are authoritative after this. */
+  declare catalogue_seeded: boolean;
+  declare catalogue_seeded_at: Date | null;
 }
 
 LabSettings.init(
@@ -47,6 +50,16 @@ LabSettings.init(
     footer_text: {
       type: DataTypes.TEXT,
       allowNull: true,
+    },
+    catalogue_seeded: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    catalogue_seeded_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null,
     },
   },
   {

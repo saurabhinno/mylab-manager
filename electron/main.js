@@ -131,7 +131,7 @@ async function restartApiAfterRestore() {
   await waitForUrl(`http://127.0.0.1:${API_PORT}/health`);
 }
 
-function startServers() {
+function startServers(extraEnv = {}) {
   const { db, uploads } = userPaths();
   fs.mkdirSync(uploads, { recursive: true });
   fs.mkdirSync(path.dirname(db), { recursive: true });
@@ -143,6 +143,7 @@ function startServers() {
     UPLOADS_DIR: uploads,
     NODE_ENV: isDev ? "development" : "production",
     FRONTEND_URL: `http://127.0.0.1:${APP_PORT}`,
+    ...extraEnv,
   };
 
   if (isDev) {
@@ -327,17 +328,23 @@ function initDrive() {
   ipcMain.handle("updates:getVersion", async () => app.getVersion());
 }
 
+/**
+ * Prefer Drive restore over factory seed on empty machines.
+ * Returns whether catalogue seed was deferred and must be finalized after.
+ */
 async function maybeAutoRestoreFromDrive() {
-  if (!drive || !drive.isConfigured()) return;
+  if (!drive || !drive.isConfigured()) return { deferredSeed: false, restored: false };
   try {
     const status = await drive.getStatus();
-    if (!(status.remote && status.localIsEmpty)) return;
+    if (!(status.remote && status.localIsEmpty)) {
+      return { deferredSeed: false, restored: false };
+    }
     const answer = await dialog.showMessageBox(mainWindow || undefined, {
       type: "question",
       title: "Restore from Google Drive?",
       message: "A cloud backup was found.",
       detail:
-        "This computer has little or no local data. Restore the cloud backup now?",
+        "This computer has little or no local data. Restore the lab backup (including your test catalogue) now? Choosing Skip will load the built-in starter catalogue once.",
       buttons: ["Restore now", "Skip"],
       defaultId: 0,
       cancelId: 1,
@@ -345,10 +352,17 @@ async function maybeAutoRestoreFromDrive() {
     restoreWindowFocus(mainWindow);
     if (answer.response === 0) {
       const restored = await drive.downloadBackup();
-      if (restored.ok) await restartApiAfterRestore();
+      if (restored.ok) {
+        // Clear defer flag before API restart so restored DB is used as-is.
+        if (sharedEnv) sharedEnv.MYLAB_DEFER_CATALOGUE_SEED = "0";
+        await restartApiAfterRestore();
+        return { deferredSeed: true, restored: true };
+      }
     }
+    return { deferredSeed: true, restored: false };
   } catch (err) {
     log("Auto-restore check failed", err);
+    return { deferredSeed: false, restored: false };
   }
 }
 
@@ -357,10 +371,37 @@ app.whenReady().then(async () => {
     log("MyLab starting (packaged=" + app.isPackaged + ")");
     registerDialogIpc();
     initDrive();
-    const { appUrl } = await startServers();
-    log(`Services ready, opening ${appUrl}`);
+
+    // If local DB is empty and Drive may have a backup, defer factory seed
+    // until the user restores or skips — otherwise seed would block restore.
+    const deferCatalogueSeed =
+      !isDev &&
+      !!drive &&
+      drive.isConfigured() &&
+      typeof drive.localIsEmpty === "function" &&
+      drive.localIsEmpty();
+
+    const { appUrl } = await startServers({
+      MYLAB_DEFER_CATALOGUE_SEED: deferCatalogueSeed ? "1" : "0",
+    });
+    log(
+      `Services ready, opening ${appUrl}` +
+        (deferCatalogueSeed ? " (catalogue seed deferred for Drive)" : "")
+    );
     createWindow(appUrl);
-    await maybeAutoRestoreFromDrive();
+
+    if (deferCatalogueSeed) {
+      const result = await maybeAutoRestoreFromDrive();
+      if (!result.restored) {
+        // User skipped (or restore failed): allow one-time factory seed.
+        if (sharedEnv) sharedEnv.MYLAB_DEFER_CATALOGUE_SEED = "0";
+        await restartApiAfterRestore();
+        log("Catalogue seed allowed after Drive restore prompt");
+      }
+    } else {
+      await maybeAutoRestoreFromDrive();
+    }
+
     restoreWindowFocus(mainWindow);
     setupAutoUpdater(log, {
       beforeInstall: () => {

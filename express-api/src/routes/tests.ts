@@ -1,8 +1,49 @@
 import { Router, Request, Response } from "express";
 import { TestDefinition } from "@/models/TestDefinition";
+import { LabSettings } from "@/models/LabSettings";
 import { requireDoctor } from "@/lib/auth";
+import { resetFactoryCatalogue } from "@/models/index";
 
 const router = Router();
+
+// Catalogue ownership status — doctor only
+router.get("/catalogue-status", requireDoctor, async (_req: Request, res: Response) => {
+  try {
+    const settings = await LabSettings.findOne();
+    const panelCount = await TestDefinition.count({ where: { is_panel: true } });
+    const testCount = await TestDefinition.count({ where: { parent_id: null } });
+    return res.json({
+      catalogue_seeded: !!settings?.catalogue_seeded,
+      catalogue_seeded_at: settings?.catalogue_seeded_at || null,
+      panel_count: panelCount,
+      root_test_count: testCount,
+      ownership: settings?.catalogue_seeded
+        ? "lab-owned"
+        : panelCount > 0
+          ? "lab-owned"
+          : "not-seeded",
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Reset to factory catalogue — doctor only (strong confirm on client)
+router.post("/reset-catalogue", requireDoctor, async (_req: Request, res: Response) => {
+  try {
+    await resetFactoryCatalogue();
+    const settings = await LabSettings.findOne();
+    return res.json({
+      success: true,
+      catalogue_seeded: !!settings?.catalogue_seeded,
+      catalogue_seeded_at: settings?.catalogue_seeded_at || null,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Failed to reset catalogue" });
+  }
+});
 
 // Get all tests with their parameters (for panels)
 router.get("/", async (req: Request, res: Response) => {

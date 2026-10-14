@@ -230,70 +230,74 @@ const standaloneTests = [
   { name: "Folic Acid", category: "Vitamins", sample_type: "Serum", unit: "ng/mL", default_min: 3, default_max: 17, method: "CLIA", price: 600, report_time: "Next Day" },
 ];
 
-/** Add missing panels/parameters from the seed catalogue without deleting user data. */
-async function ensureCatalogueUpToDate() {
-  let addedPanels = 0;
-  let addedParams = 0;
-
-  // Drop accidental placeholder params left from failed edits
-  const junk = await TestDefinition.findAll({
-    where: { is_panel: false },
-  });
-  for (const row of junk) {
-    if (/^New Param\b/i.test(row.name)) {
-      try {
-        await row.destroy();
-      } catch {
-        row.parent_id = null;
-        await row.save();
-      }
+/** SQLite does not alter existing tables on sync — add catalogue columns if missing. */
+async function ensureLabSettingsCatalogueColumns() {
+  if (!isSqlite) return;
+  try {
+    const [cols] = await sequelize.query("PRAGMA table_info(lab_settings)");
+    const names = new Set((cols as { name: string }[]).map((c) => c.name));
+    if (!names.has("catalogue_seeded")) {
+      await sequelize.query(
+        "ALTER TABLE lab_settings ADD COLUMN catalogue_seeded INTEGER NOT NULL DEFAULT 0"
+      );
     }
+    if (!names.has("catalogue_seeded_at")) {
+      await sequelize.query(
+        "ALTER TABLE lab_settings ADD COLUMN catalogue_seeded_at DATETIME"
+      );
+    }
+  } catch (err) {
+    console.warn("Could not ensure lab_settings catalogue columns", err);
   }
+}
 
+async function getOrCreateLabSettings() {
+  let settings = await LabSettings.findOne();
+  if (!settings) {
+    settings = await LabSettings.create({
+      lab_name: "MyLab Diagnostics & Pathology",
+      address: "123 Health Street, Medical Complex",
+      phone: "+91 98765 43210",
+      email: "info@mylab.com",
+      header_text: "Accurate Results. Trusted Care.",
+      footer_text:
+        "This is a computer-generated report and does not require a physical signature unless specified.",
+      catalogue_seeded: false,
+      catalogue_seeded_at: null,
+    });
+    console.log("Default lab settings created");
+  }
+  return settings;
+}
+
+async function markCatalogueSeeded() {
+  const settings = await getOrCreateLabSettings();
+  if (!settings.catalogue_seeded) {
+    settings.catalogue_seeded = true;
+    settings.catalogue_seeded_at = new Date();
+    await settings.save();
+  }
+}
+
+/** Apply built-in panels + standalone tests (does not clear existing rows). */
+export async function seedFactoryCatalogue() {
   for (const { panel, parameters } of panelTests) {
-    let panelRow = await TestDefinition.findOne({
-      where: { name: panel.name, parent_id: null, is_panel: true },
-    });
-
-    if (!panelRow) {
-      panelRow = await TestDefinition.create({
-        name: panel.name,
-        category: panel.category,
-        sample_type: panel.sample_type,
-        method: panel.method,
-        price: panel.price,
-        report_time: panel.report_time,
-        is_panel: true,
-        parent_id: null,
-        display_order: 0,
-        unit: null,
-        default_min: null,
-        default_max: null,
-      } as any);
-      addedPanels++;
-    }
-
-    const existingParams = await TestDefinition.findAll({
-      where: { parent_id: panelRow.id },
-    });
-    const byName = new Map(
-      existingParams.map((p) => [p.name.trim().toLowerCase(), p])
-    );
+    const createdPanel = await TestDefinition.create({
+      name: panel.name,
+      category: panel.category,
+      sample_type: panel.sample_type,
+      method: panel.method,
+      price: panel.price,
+      report_time: panel.report_time,
+      is_panel: true,
+      parent_id: null,
+      display_order: 0,
+      unit: null,
+      default_min: null,
+      default_max: null,
+    } as any);
 
     for (const param of parameters) {
-      const key = param.name.trim().toLowerCase();
-      const existing = byName.get(key);
-      if (existing) {
-        // Keep display order / ranges in sync with catalogue
-        existing.display_order = param.display_order;
-        existing.unit = param.unit || null;
-        existing.default_min = param.default_min ?? null;
-        existing.default_max = param.default_max ?? null;
-        existing.method = param.method || panel.method;
-        await existing.save();
-        continue;
-      }
-
       await TestDefinition.create({
         name: param.name,
         category: panel.category,
@@ -302,36 +306,64 @@ async function ensureCatalogueUpToDate() {
         price: 0,
         report_time: panel.report_time,
         is_panel: false,
-        parent_id: panelRow.id,
+        parent_id: createdPanel.id,
         display_order: param.display_order,
         unit: param.unit || null,
         default_min: param.default_min ?? null,
         default_max: param.default_max ?? null,
       } as any);
-      addedParams++;
     }
   }
 
   for (const test of standaloneTests) {
-    const exists = await TestDefinition.findOne({
-      where: { name: test.name, parent_id: null, is_panel: false },
-    });
-    if (!exists) {
-      await TestDefinition.create({
-        ...test,
-        is_panel: false,
-        parent_id: null,
-        display_order: 0,
-      } as any);
-      addedParams++;
+    await TestDefinition.create({
+      ...test,
+      is_panel: false,
+      parent_id: null,
+      display_order: 0,
+    } as any);
+  }
+
+  console.log(
+    `Seeded ${panelTests.length} panel tests and ${standaloneTests.length} standalone tests`
+  );
+}
+
+/**
+ * Doctor factory reset: drop unused catalogue rows, detach rows still referenced
+ * by reports, then re-apply the built-in seed once.
+ */
+export async function resetFactoryCatalogue() {
+  const usedRows = await ReportItem.findAll({
+    attributes: ["test_definition_id"],
+  });
+  const usedIds = new Set(
+    usedRows.map((r) => r.test_definition_id).filter((id) => id != null)
+  );
+
+  const all = await TestDefinition.findAll();
+  for (const row of all) {
+    if (usedIds.has(row.id)) {
+      row.parent_id = null;
+      row.is_panel = false;
+      await row.save();
+    } else {
+      try {
+        await row.destroy();
+      } catch (err) {
+        console.warn(`Could not delete test #${row.id}; detaching`, err);
+        row.parent_id = null;
+        row.is_panel = false;
+        await row.save();
+      }
     }
   }
 
-  if (addedPanels || addedParams) {
-    console.log(
-      `Catalogue sync: +${addedPanels} panels, +${addedParams} parameters`
-    );
-  }
+  await seedFactoryCatalogue();
+  const settings = await getOrCreateLabSettings();
+  settings.catalogue_seeded = true;
+  settings.catalogue_seeded_at = new Date();
+  await settings.save();
 }
 
 export const initDatabase = async () => {
@@ -348,6 +380,7 @@ export const initDatabase = async () => {
   await Report.sync(syncOpts);
   await ReportItem.sync(syncOpts);
   await LabSettings.sync(syncOpts);
+  await ensureLabSettingsCatalogueColumns();
 
   // Seed default doctor if not exists
   const defaultDoctor = await User.findOne({ where: { email: "doctor@mylab.com" } });
@@ -362,76 +395,38 @@ export const initDatabase = async () => {
     console.log("Default doctor created: doctor@mylab.com / password");
   }
 
-  // Seed tests: truncate and re-seed if no panels exist
+  const settings = await getOrCreateLabSettings();
   const panelCount = await TestDefinition.count({ where: { is_panel: true } });
-  if (panelCount === 0) {
-    // Clear existing tests to start fresh with panel structure
-    // (avoid truncate — SQLite + FKs do not support it cleanly)
-    await TestDefinition.destroy({ where: {} });
 
-    // Seed panel tests with their parameters
-    for (const { panel, parameters } of panelTests) {
-      const createdPanel = await TestDefinition.create({
-        name: panel.name,
-        category: panel.category,
-        sample_type: panel.sample_type,
-        method: panel.method,
-        price: panel.price,
-        report_time: panel.report_time,
-        is_panel: true,
-        parent_id: null,
-        display_order: 0,
-        unit: null,
-        default_min: null,
-        default_max: null,
-      } as any);
-
-      for (const param of parameters) {
-        await TestDefinition.create({
-          name: param.name,
-          category: panel.category,
-          sample_type: panel.sample_type,
-          method: param.method || panel.method,
-          price: 0,
-          report_time: panel.report_time,
-          is_panel: false,
-          parent_id: createdPanel.id,
-          display_order: param.display_order,
-          unit: param.unit || null,
-          default_min: param.default_min ?? null,
-          default_max: param.default_max ?? null,
-        } as any);
-      }
+  // Existing lab DBs: never re-apply seed; mark as lab-owned immediately.
+  if (panelCount > 0) {
+    if (!settings.catalogue_seeded) {
+      await markCatalogueSeeded();
+      console.log("Catalogue marked lab-owned (existing panels; no further seed sync)");
     }
-
-    // Seed standalone tests
-    for (const test of standaloneTests) {
-      await TestDefinition.create({
-        ...test,
-        is_panel: false,
-        parent_id: null,
-        display_order: 0,
-      } as any);
-    }
-
-    console.log(`Seeded ${panelTests.length} panel tests and ${standaloneTests.length} standalone tests`);
-  } else {
-    // Existing DBs: add any missing panels/parameters without wiping reports
-    await ensureCatalogueUpToDate();
+  } else if (
+    !settings.catalogue_seeded &&
+    process.env.MYLAB_DEFER_CATALOGUE_SEED !== "1"
+  ) {
+    // First boot (or empty DB after wipe): seed once, then never again.
+    await seedFactoryCatalogue();
+    await markCatalogueSeeded();
+  } else if (process.env.MYLAB_DEFER_CATALOGUE_SEED === "1") {
+    console.log(
+      "Catalogue seed deferred (waiting for Drive restore decision)"
+    );
   }
 
-  // Seed default lab settings
-  const settingsCount = await LabSettings.count();
-  if (settingsCount === 0) {
-    await LabSettings.create({
-      lab_name: "MyLab Diagnostics & Pathology",
-      address: "123 Health Street, Medical Complex",
-      phone: "+91 98765 43210",
-      email: "info@mylab.com",
-      header_text: "Accurate Results. Trusted Care.",
-      footer_text: "This is a computer-generated report and does not require a physical signature unless specified.",
-    });
-    console.log("Default lab settings created");
+  // Clean accidental placeholder params from failed edits (safe, non-seed)
+  const junk = await TestDefinition.findAll({ where: { is_panel: false } });
+  for (const row of junk) {
+    if (!/^New Param\b/i.test(row.name)) continue;
+    try {
+      await row.destroy();
+    } catch {
+      row.parent_id = null;
+      await row.save();
+    }
   }
 };
 
