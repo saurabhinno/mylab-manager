@@ -112,6 +112,7 @@ export default function CompounderReportsPage() {
   const [phone, setPhone] = useState("");
   const [referredBy, setReferredBy] = useState("");
   const [selectedTestIds, setSelectedTestIds] = useState<number[]>([]);
+  const [testSearch, setTestSearch] = useState("");
   const [isPaid, setIsPaid] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -145,13 +146,27 @@ export default function CompounderReportsPage() {
     return acc;
   }, [] as Report[]);
 
-  // Group tests: panels first, then by category
-  const panelTests = allTests.filter((t) => t.is_panel);
-  const standaloneByCategory = allTests.filter((t) => !t.is_panel).reduce((acc, t) => {
-    if (!acc[t.category]) acc[t.category] = [];
-    acc[t.category].push(t);
-    return acc;
-  }, {} as Record<string, TestDef[]>);
+  // Group tests: panels first, then by category (filtered by search)
+  const testQuery = testSearch.trim().toLowerCase();
+  const matchesTestSearch = (t: TestDef) => {
+    if (!testQuery) return true;
+    return (
+      t.name.toLowerCase().includes(testQuery) ||
+      t.category.toLowerCase().includes(testQuery) ||
+      (t.sample_type || "").toLowerCase().includes(testQuery) ||
+      (t.parameters || []).some((p) => p.name.toLowerCase().includes(testQuery))
+    );
+  };
+  const panelTests = allTests.filter((t) => t.is_panel && matchesTestSearch(t));
+  const standaloneByCategory = allTests
+    .filter((t) => !t.is_panel && matchesTestSearch(t))
+    .reduce((acc, t) => {
+      if (!acc[t.category]) acc[t.category] = [];
+      acc[t.category].push(t);
+      return acc;
+    }, {} as Record<string, TestDef[]>);
+  const noTestsMatch =
+    testQuery.length > 0 && panelTests.length === 0 && Object.keys(standaloneByCategory).length === 0;
 
   function openCollect(prefill?: Report) {
     if (prefill) {
@@ -163,7 +178,9 @@ export default function CompounderReportsPage() {
     } else {
       setPatientName(""); setAge(""); setGender(""); setPhone(""); setReferredBy("");
     }
-    setSelectedTestIds([]); setIsPaid(false);
+    setSelectedTestIds([]);
+    setTestSearch("");
+    setIsPaid(false);
     setModal("collect");
   }
 
@@ -597,17 +614,44 @@ export default function CompounderReportsPage() {
               {/* Tests selection */}
               <Grid item xs={12}>
                 <Divider sx={{ my: 1 }} />
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2, mt: 1 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5, mt: 1 }}>
                   <ScienceOutlined sx={{ color: "primary.main" }} />
                   <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{t("compounder.select_tests")}</Typography>
                   {selectedTestIds.length > 0 && (
                     <Chip label={`${selectedTestIds.length} ${t("compounder.selected")} • ₹${totalPrice}`} color="primary" sx={{ ml: "auto", fontWeight: 700, fontSize: 13 }} />
                   )}
                 </Box>
+                <TextField
+                  placeholder={t("compounder.search_tests_placeholder")}
+                  value={testSearch}
+                  onChange={(e) => setTestSearch(e.target.value)}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 2 }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchOutlined sx={{ fontSize: 18 }} />
+                      </InputAdornment>
+                    ),
+                    endAdornment: testSearch ? (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setTestSearch("")} aria-label="Clear search">
+                          <CloseOutlined fontSize="small" />
+                        </IconButton>
+                      </InputAdornment>
+                    ) : undefined,
+                  }}
+                />
+                {noTestsMatch && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    {t("compounder.no_tests_match")}
+                  </Typography>
+                )}
                 {/* Panel tests first */}
                 {panelTests.length > 0 && (
                   <Box sx={{ mb: 2 }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: "#0f4c81", textTransform: "uppercase", fontSize: 11 }}>📋 Panel Tests</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: "#0f4c81", textTransform: "uppercase", fontSize: 11 }}>Panel Tests</Typography>
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.8, mt: 0.5 }}>
                       {panelTests.map((t) => (
                         <Chip
@@ -622,7 +666,7 @@ export default function CompounderReportsPage() {
                     </Box>
                   </Box>
                 )}
-                <Divider sx={{ my: 1.5 }} />
+                {Object.keys(standaloneByCategory).length > 0 && <Divider sx={{ my: 1.5 }} />}
                 {/* Standalone tests by category */}
                 {Object.entries(standaloneByCategory).map(([cat, tests]) => (
                   <Box key={cat} sx={{ mb: 2 }}>

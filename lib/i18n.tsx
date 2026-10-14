@@ -59,6 +59,16 @@ const translations: Record<string, Record<Lang, string>> = {
   "compounder.save_draft": { en: "Save Draft", hi: "ड्राफ्ट सेव करें", hinglish: "Draft Save Karo" },
   "compounder.register_sample": { en: "Register Sample", hi: "सैंपल रजिस्टर करें", hinglish: "Sample Register Karo" },
   "compounder.select_tests": { en: "Select Tests", hi: "टेस्ट चुनें", hinglish: "Tests Chuno" },
+  "compounder.search_tests_placeholder": {
+    en: "Search panels or tests…",
+    hi: "पैनल या टेस्ट खोजें…",
+    hinglish: "Panel ya test search karo…",
+  },
+  "compounder.no_tests_match": {
+    en: "No panels or tests match your search.",
+    hi: "कोई पैनल या टेस्ट नहीं मिला।",
+    hinglish: "Koi panel ya test nahi mila.",
+  },
   "compounder.patient_name": { en: "Patient Name", hi: "मरीज का नाम", hinglish: "Patient ka Naam" },
   "compounder.age": { en: "Age", hi: "उम्र", hinglish: "Age" },
   "compounder.gender": { en: "Gender", hi: "लिंग", hinglish: "Gender" },
