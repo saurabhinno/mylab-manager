@@ -4,6 +4,10 @@ declare global {
   interface Window {
     mylab?: {
       isDesktop?: boolean;
+      /** Electron-safe replacements for window.alert / confirm */
+      alert?: (message: string) => void;
+      confirm?: (message: string) => boolean;
+      restoreInputFocus?: () => void;
       drive?: {
         getStatus: () => Promise<{
           mode?: string;
