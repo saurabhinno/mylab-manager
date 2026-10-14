@@ -1,7 +1,16 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+/**
+ * Native window.alert / window.confirm break keyboard input in Electron
+ * (Chromium bug). Route through main-process dialogs instead.
+ */
 contextBridge.exposeInMainWorld("mylab", {
   isDesktop: true,
+  alert: (message) =>
+    ipcRenderer.sendSync("dialog:alert", String(message ?? "")),
+  confirm: (message) =>
+    ipcRenderer.sendSync("dialog:confirm", String(message ?? "")),
+  restoreInputFocus: () => ipcRenderer.send("dialog:restore-focus"),
   drive: {
     getStatus: () => ipcRenderer.invoke("drive:getStatus"),
     backupNow: () => ipcRenderer.invoke("drive:backupNow"),

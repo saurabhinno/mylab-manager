@@ -190,6 +190,20 @@ function startServers() {
   }));
 }
 
+/** Electron bug: after native alert/confirm, inputs stop accepting keystrokes until blur+focus. */
+function restoreWindowFocus(win) {
+  const target = win && !win.isDestroyed() ? win : mainWindow;
+  if (!target || target.isDestroyed()) return;
+  try {
+    target.blur();
+    setTimeout(() => {
+      if (!target.isDestroyed()) target.focus();
+    }, 10);
+  } catch (err) {
+    log("restoreWindowFocus failed", err);
+  }
+}
+
 function createWindow(appUrl) {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -215,6 +229,39 @@ function createWindow(appUrl) {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+  });
+}
+
+function registerDialogIpc() {
+  ipcMain.on("dialog:alert", (event, message) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    dialog.showMessageBoxSync(win || undefined, {
+      type: "info",
+      title: "MyLab",
+      message: String(message ?? ""),
+      buttons: ["OK"],
+      defaultId: 0,
+    });
+    restoreWindowFocus(win);
+    event.returnValue = undefined;
+  });
+
+  ipcMain.on("dialog:confirm", (event, message) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const result = dialog.showMessageBoxSync(win || undefined, {
+      type: "question",
+      title: "MyLab",
+      message: String(message ?? ""),
+      buttons: ["Cancel", "OK"],
+      defaultId: 1,
+      cancelId: 0,
+    });
+    restoreWindowFocus(win);
+    event.returnValue = result === 1;
+  });
+
+  ipcMain.on("dialog:restore-focus", (event) => {
+    restoreWindowFocus(BrowserWindow.fromWebContents(event.sender));
   });
 }
 
@@ -250,7 +297,7 @@ function initDrive() {
   ipcMain.handle("drive:getStatus", async () => drive.getStatus());
   ipcMain.handle("drive:backupNow", async () => drive.uploadBackup());
   ipcMain.handle("drive:restore", async () => {
-    const confirm = await dialog.showMessageBox({
+    const confirm = await dialog.showMessageBox(mainWindow || undefined, {
       type: "warning",
       title: "Restore cloud backup?",
       message: "Replace local data with the Google Drive backup?",
@@ -259,6 +306,7 @@ function initDrive() {
       defaultId: 1,
       cancelId: 1,
     });
+    restoreWindowFocus(mainWindow);
     if (confirm.response !== 0) return { ok: false, cancelled: true };
     const restored = await drive.downloadBackup();
     if (restored.ok) await restartApiAfterRestore();
@@ -284,7 +332,7 @@ async function maybeAutoRestoreFromDrive() {
   try {
     const status = await drive.getStatus();
     if (!(status.remote && status.localIsEmpty)) return;
-    const answer = await dialog.showMessageBox({
+    const answer = await dialog.showMessageBox(mainWindow || undefined, {
       type: "question",
       title: "Restore from Google Drive?",
       message: "A cloud backup was found.",
@@ -294,6 +342,7 @@ async function maybeAutoRestoreFromDrive() {
       defaultId: 0,
       cancelId: 1,
     });
+    restoreWindowFocus(mainWindow);
     if (answer.response === 0) {
       const restored = await drive.downloadBackup();
       if (restored.ok) await restartApiAfterRestore();
@@ -306,11 +355,13 @@ async function maybeAutoRestoreFromDrive() {
 app.whenReady().then(async () => {
   try {
     log("MyLab starting (packaged=" + app.isPackaged + ")");
+    registerDialogIpc();
     initDrive();
     const { appUrl } = await startServers();
     log(`Services ready, opening ${appUrl}`);
     createWindow(appUrl);
     await maybeAutoRestoreFromDrive();
+    restoreWindowFocus(mainWindow);
     setupAutoUpdater(log, {
       beforeInstall: () => {
         if (drive) drive.stopSchedule();

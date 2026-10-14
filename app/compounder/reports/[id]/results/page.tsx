@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Box, Typography, Card, CardContent, TextField, Button, Alert,
@@ -26,6 +26,82 @@ interface ReportItemData {
   normal_max: number | null;
   panel_name: string | null;
 }
+
+function resultStatus(
+  item: ReportItemData,
+  value: string
+): "normal" | "high" | "low" | "none" {
+  if (!value || item.normal_min == null || item.normal_max == null) return "none";
+  const val = parseFloat(value);
+  if (isNaN(val)) return "none";
+  if (val < item.normal_min) return "low";
+  if (val > item.normal_max) return "high";
+  return "normal";
+}
+
+const ResultInputRow = React.memo(function ResultInputRow({
+  item,
+  value,
+  onChange,
+  onKeyDown,
+  onRemove,
+  inputRef,
+}: {
+  item: ReportItemData;
+  value: string;
+  onChange: (id: number, value: string) => void;
+  onKeyDown: (e: React.KeyboardEvent, id: number) => void;
+  onRemove: (item: ReportItemData) => void;
+  inputRef: (id: number, el: HTMLInputElement | null) => void;
+}) {
+  const status = resultStatus(item, value);
+  const isAbnormal = status === "high" || status === "low";
+  return (
+    <TableRow sx={{ bgcolor: isAbnormal ? "#fef2f2" : "transparent" }}>
+      <TableCell sx={{ fontWeight: 500, fontSize: 13 }}>{item.test_name}</TableCell>
+      <TableCell sx={{ fontSize: 12 }}>{item.unit || "—"}</TableCell>
+      <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>
+        {item.normal_min != null && item.normal_max != null
+          ? `${item.normal_min} – ${item.normal_max}`
+          : "—"}
+      </TableCell>
+      <TableCell>
+        <TextField
+          size="small"
+          inputRef={(el) => inputRef(item.id, el)}
+          value={value}
+          onChange={(e) => onChange(item.id, e.target.value)}
+          onKeyDown={(e) => onKeyDown(e, item.id)}
+          placeholder="Enter value"
+          sx={{ width: 130 }}
+        />
+      </TableCell>
+      <TableCell align="center">
+        {status === "normal" && (
+          <Chip label="Normal" size="small" color="success" sx={{ fontSize: 10, height: 20 }} />
+        )}
+        {status === "high" && (
+          <Chip label="High ↑" size="small" color="error" sx={{ fontSize: 10, height: 20 }} />
+        )}
+        {status === "low" && (
+          <Chip label="Low ↓" size="small" color="warning" sx={{ fontSize: 10, height: 20 }} />
+        )}
+      </TableCell>
+      <TableCell align="center">
+        <Tooltip title="Remove from report">
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => onRemove(item)}
+            aria-label={`Remove ${item.test_name}`}
+          >
+            <CloseOutlined fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </TableCell>
+    </TableRow>
+  );
+});
 
 interface ReportData {
   id: number;
@@ -69,15 +145,6 @@ export default function EnterResultsPage() {
     }
   }, [params.id]);
 
-  function getStatus(item: ReportItemData, value: string): "normal" | "high" | "low" | "none" {
-    if (!value || item.normal_min == null || item.normal_max == null) return "none";
-    const val = parseFloat(value);
-    if (isNaN(val)) return "none";
-    if (val < item.normal_min) return "low";
-    if (val > item.normal_max) return "high";
-    return "normal";
-  }
-
   // Group items by panel_name
   function getGroupedItems(): { panelName: string | null; items: ReportItemData[] }[] {
     if (!report?.reportItems) return [];
@@ -85,7 +152,6 @@ export default function EnterResultsPage() {
     const seen = new Set<string>();
 
     for (const item of report.reportItems) {
-      const key = item.panel_name || `standalone_${item.id}`;
       if (item.panel_name) {
         if (!seen.has(item.panel_name)) {
           seen.add(item.panel_name);
@@ -101,18 +167,26 @@ export default function EnterResultsPage() {
     return groups;
   }
 
-  function handleKeyDown(e: React.KeyboardEvent, itemId: number) {
-    if (e.key === "Enter") {
+  const handleResultChange = useCallback((id: number, value: string) => {
+    setResults((prev) => ({ ...prev, [id]: value }));
+  }, []);
+
+  const setInputRef = useCallback((id: number, el: HTMLInputElement | null) => {
+    inputRefs.current[id] = el;
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent, itemId: number) => {
+      if (e.key !== "Enter") return;
       e.preventDefault();
-      // Focus next input
       const allItems = report?.reportItems || [];
       const idx = allItems.findIndex((i) => i.id === itemId);
-      if (idx < allItems.length - 1) {
-        const nextId = allItems[idx + 1].id;
-        inputRefs.current[nextId]?.focus();
+      if (idx >= 0 && idx < allItems.length - 1) {
+        inputRefs.current[allItems[idx + 1].id]?.focus();
       }
-    }
-  }
+    },
+    [report?.reportItems]
+  );
 
   async function togglePayment() {
     if (!report) return;
@@ -143,35 +217,41 @@ export default function EnterResultsPage() {
     }
   }
 
-  async function removeParameter(item: ReportItemData) {
-    if (!report) return;
-    if (report.reportItems.length <= 1) {
-      setAlert({ type: "error", msg: "Cannot remove the last parameter. Delete the report instead." });
-      setTimeout(() => setAlert(null), 4000);
-      return;
-    }
-    if (!confirm(`Remove "${item.test_name}" from this report?`)) return;
+  const removeParameter = useCallback(
+    async (item: ReportItemData) => {
+      if (!report) return;
+      if (report.reportItems.length <= 1) {
+        setAlert({
+          type: "error",
+          msg: "Cannot remove the last parameter. Delete the report instead.",
+        });
+        setTimeout(() => setAlert(null), 4000);
+        return;
+      }
+      if (!confirm(`Remove "${item.test_name}" from this report?`)) return;
 
-    const res = await apiRequest(`/api/reports/${report.id}/items/${item.id}`, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      setAlert({ type: "error", msg: d.error || "Failed to remove parameter" });
-      setTimeout(() => setAlert(null), 4000);
-      return;
-    }
+      const res = await apiRequest(`/api/reports/${report.id}/items/${item.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setAlert({ type: "error", msg: d.error || "Failed to remove parameter" });
+        setTimeout(() => setAlert(null), 4000);
+        return;
+      }
 
-    setReport({
-      ...report,
-      reportItems: report.reportItems.filter((i) => i.id !== item.id),
-    });
-    setResults((prev) => {
-      const next = { ...prev };
-      delete next[item.id];
-      return next;
-    });
-  }
+      setReport({
+        ...report,
+        reportItems: report.reportItems.filter((i) => i.id !== item.id),
+      });
+      setResults((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+    },
+    [report]
+  );
 
   async function handleSave(finalize: boolean) {
     if (!report) return;
@@ -273,56 +353,25 @@ export default function EnterResultsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {group.items.map((item) => {
-                    const value = results[item.id] || "";
-                    const status = getStatus(item, value);
-                    const isAbnormal = status === "high" || status === "low";
-                    return (
-                      <TableRow key={item.id} sx={{ bgcolor: isAbnormal ? "#fef2f2" : "transparent" }}>
-                        <TableCell sx={{ fontWeight: 500, fontSize: 13 }}>{item.test_name}</TableCell>
-                        <TableCell sx={{ fontSize: 12 }}>{item.unit || "—"}</TableCell>
-                        <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>
-                          {item.normal_min != null && item.normal_max != null ? `${item.normal_min} – ${item.normal_max}` : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <TextField
-                            size="small"
-                            inputRef={(el) => { inputRefs.current[item.id] = el; }}
-                            value={value}
-                            onChange={(e) => setResults((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                            onKeyDown={(e) => handleKeyDown(e, item.id)}
-                            placeholder="Enter value"
-                            sx={{ width: 130 }}
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          {status === "normal" && <Chip label="Normal" size="small" color="success" sx={{ fontSize: 10, height: 20 }} />}
-                          {status === "high" && <Chip label="High ↑" size="small" color="error" sx={{ fontSize: 10, height: 20 }} />}
-                          {status === "low" && <Chip label="Low ↓" size="small" color="warning" sx={{ fontSize: 10, height: 20 }} />}
-                        </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="Remove from report">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => removeParameter(item)}
-                              aria-label={`Remove ${item.test_name}`}
-                            >
-                              <CloseOutlined fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {group.items.map((item) => (
+                    <ResultInputRow
+                      key={item.id}
+                      item={item}
+                      value={results[item.id] || ""}
+                      onChange={handleResultChange}
+                      onKeyDown={handleKeyDown}
+                      onRemove={removeParameter}
+                      inputRef={setInputRef}
+                    />
+                  ))}
                 </TableBody>
               </Table>
             </TableContainer>
           </Card>
         ))}
 
-        {/* Action buttons */}
-        <Card sx={{ position: "sticky", bottom: 0, borderRadius: 2, mt: 2 }}>
+        {/* Action buttons — not sticky so they never cover result inputs */}
+        <Card sx={{ borderRadius: 2, mt: 2, mb: 2 }}>
           <CardContent>
             <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 2 }}>
               <Button

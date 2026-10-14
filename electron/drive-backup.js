@@ -291,24 +291,37 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
     return { file: existing, buffer: Buffer.from(res.data), folder };
   }
 
-  function buildBackupJson() {
+  function yieldEventLoop() {
+    return new Promise((resolve) => setImmediate(resolve));
+  }
+
+  async function buildBackupJson() {
     if (!fs.existsSync(dbPath)) throw new Error("Local database not found");
+    // Read in chunks of work with yields so the UI keeps receiving keystrokes
+    await yieldEventLoop();
+    const dbBuf = await fs.promises.readFile(dbPath);
+    await yieldEventLoop();
     const payload = {
       version: 1,
       createdAt: new Date().toISOString(),
-      dbMtime: fs.statSync(dbPath).mtime.toISOString(),
-      db: fs.readFileSync(dbPath).toString("base64"),
+      dbMtime: (await fs.promises.stat(dbPath)).mtime.toISOString(),
+      db: dbBuf.toString("base64"),
       uploads: {},
     };
+    await yieldEventLoop();
     if (uploadsPath && fs.existsSync(uploadsPath)) {
-      for (const name of fs.readdirSync(uploadsPath)) {
+      const names = await fs.promises.readdir(uploadsPath);
+      for (const name of names) {
         const full = path.join(uploadsPath, name);
-        const st = fs.statSync(full);
+        const st = await fs.promises.stat(full);
         if (st.isFile() && st.size < 5_000_000) {
-          payload.uploads[name] = fs.readFileSync(full).toString("base64");
+          const fileBuf = await fs.promises.readFile(full);
+          payload.uploads[name] = fileBuf.toString("base64");
+          await yieldEventLoop();
         }
       }
     }
+    await yieldEventLoop();
     return Buffer.from(JSON.stringify(payload), "utf8");
   }
 
@@ -340,7 +353,9 @@ function createDriveBackup({ userDataPath, dbPath, uploadsPath, log }) {
       const drive = await driveApi();
       const folder = await ensureBackupFolder(drive);
       const key = getOrCreateBackupKey();
-      const encrypted = encryptBuffer(buildBackupJson(), key);
+      const plain = await buildBackupJson();
+      await yieldEventLoop();
+      const encrypted = encryptBuffer(plain, key);
       const props = {
         createdAt: new Date().toISOString(),
         dbMtime: fs.existsSync(dbPath)

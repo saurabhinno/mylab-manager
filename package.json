@@ -1,6 +1,6 @@
 {
   "name": "mylab",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "private": true,
   "description": "MyLab — local desktop blood test diagnostics portal",
   "main": "electron/main.js",

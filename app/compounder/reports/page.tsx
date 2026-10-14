@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Box, Typography, Card, CardContent, Chip, TextField, InputAdornment,
   CircularProgress, Button, IconButton, Dialog, DialogTitle,
@@ -24,6 +24,62 @@ interface TestParam { id: number; name: string; unit: string | null; default_min
 interface TestDef { id: number; name: string; category: string; sample_type: string; price: number; is_panel: boolean; parameters?: TestParam[]; }
 interface ReportItem { id: number; test_name: string; sample_type: string | null; result_value: string; unit: string | null; normal_min: number | null; normal_max: number | null; panel_name: string | null; }
 interface Report { id: number; date: string; patient_name: string; patient_age: number; patient_gender: string | null; patient_phone: string | null; referred_by: string | null; total_price: number; payment_status: string; status: string; compounder_id: number; reportItems?: ReportItem[]; compounder?: { id?: number; name: string | null; email: string }; }
+
+const ModalResultRow = React.memo(function ModalResultRow({
+  item,
+  value,
+  onChange,
+  onRemove,
+}: {
+  item: ReportItem;
+  value: string;
+  onChange: (id: number, value: string) => void;
+  onRemove: (item: ReportItem) => void;
+}) {
+  const numVal = parseFloat(value);
+  let statusChip = null;
+  if (value && item.normal_min != null && item.normal_max != null && !isNaN(numVal)) {
+    if (numVal < item.normal_min) {
+      statusChip = <Chip label="↓ LOW" color="warning" size="small" sx={{ fontSize: 10, height: 20, ml: 1 }} />;
+    } else if (numVal > item.normal_max) {
+      statusChip = <Chip label="↑ HIGH" color="error" size="small" sx={{ fontSize: 10, height: 20, ml: 1 }} />;
+    } else {
+      statusChip = <Chip label="✓" color="success" size="small" sx={{ fontSize: 10, height: 20, ml: 1 }} />;
+    }
+  }
+
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, py: 1, px: 2, borderBottom: "1px solid #f1f5f9" }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{item.test_name}</Typography>
+        <Typography variant="caption" color="text.secondary">
+          {item.normal_min != null && item.normal_max != null
+            ? `${item.normal_min}–${item.normal_max} ${item.unit || ""}`
+            : item.unit || ""}
+        </Typography>
+      </Box>
+      <TextField
+        size="small"
+        value={value}
+        onChange={(e) => onChange(item.id, e.target.value)}
+        placeholder="Value"
+        inputProps={{ inputMode: "decimal" }}
+        sx={{ width: 110 }}
+      />
+      {statusChip}
+      <Tooltip title="Remove from report">
+        <IconButton
+          size="small"
+          color="error"
+          onClick={() => onRemove(item)}
+          aria-label={`Remove ${item.test_name}`}
+        >
+          <CloseOutlined fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    </Box>
+  );
+});
 
 type ModalMode = null | "collect" | "results";
 type ViewFilter = "today" | "pending" | "done" | "all";
@@ -209,37 +265,44 @@ export default function CompounderReportsPage() {
     setTimeout(() => setAlert(null), 3000);
   }
 
-  async function removeParameter(item: ReportItem) {
-    if (!activeReport) return;
-    const items = activeReport.reportItems || [];
-    if (items.length <= 1) {
-      setAlert({ type: "error", msg: "Cannot remove the last parameter. Delete the report instead." });
-      setTimeout(() => setAlert(null), 3000);
-      return;
-    }
-    if (!confirm(`Remove "${item.test_name}" from this report?`)) return;
+  const handleResultChange = useCallback((id: number, value: string) => {
+    setResults((prev) => ({ ...prev, [id]: value }));
+  }, []);
 
-    const res = await apiRequest(`/api/reports/${activeReport.id}/items/${item.id}`, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      setAlert({ type: "error", msg: d.error || "Failed to remove parameter" });
-      setTimeout(() => setAlert(null), 3000);
-      return;
-    }
+  const removeParameter = useCallback(
+    async (item: ReportItem) => {
+      if (!activeReport) return;
+      const items = activeReport.reportItems || [];
+      if (items.length <= 1) {
+        setAlert({ type: "error", msg: "Cannot remove the last parameter. Delete the report instead." });
+        setTimeout(() => setAlert(null), 3000);
+        return;
+      }
+      if (!confirm(`Remove "${item.test_name}" from this report?`)) return;
 
-    if (navigator.vibrate) navigator.vibrate(30);
-    setActiveReport({
-      ...activeReport,
-      reportItems: items.filter((i) => i.id !== item.id),
-    });
-    setResults((prev) => {
-      const next = { ...prev };
-      delete next[item.id];
-      return next;
-    });
-  }
+      const res = await apiRequest(`/api/reports/${activeReport.id}/items/${item.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setAlert({ type: "error", msg: d.error || "Failed to remove parameter" });
+        setTimeout(() => setAlert(null), 3000);
+        return;
+      }
+
+      if (navigator.vibrate) navigator.vibrate(30);
+      setActiveReport({
+        ...activeReport,
+        reportItems: items.filter((i) => i.id !== item.id),
+      });
+      setResults((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+    },
+    [activeReport]
+  );
 
   const selectedTests = allTests.filter((t) => selectedTestIds.includes(t.id));
   const totalPrice = selectedTests.reduce((s, t) => s + t.price, 0);
@@ -591,7 +654,15 @@ export default function CompounderReportsPage() {
         </Dialog>
 
         {/* ENTER RESULTS - ALL AT ONCE WITH GROUPING */}
-        <Dialog open={modal === "results"} onClose={closeModal} maxWidth="md" fullWidth fullScreen PaperProps={{ sx: { borderRadius: { xs: 0, sm: 3 } } }}>
+        <Dialog
+          open={modal === "results"}
+          onClose={closeModal}
+          maxWidth="md"
+          fullWidth
+          fullScreen
+          disableRestoreFocus
+          PaperProps={{ sx: { borderRadius: { xs: 0, sm: 3 } } }}
+        >
           <DialogTitle sx={{ pb: 1, pt: 2 }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <Box>
@@ -634,45 +705,15 @@ export default function CompounderReportsPage() {
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#0f4c81" }}>{group.panelName}</Typography>
                     </Box>
                   )}
-                  {group.items.map((item) => {
-                    const val = results[item.id] || "";
-                    const numVal = parseFloat(val);
-                    let statusChip = null;
-                    if (val && item.normal_min != null && item.normal_max != null && !isNaN(numVal)) {
-                      if (numVal < item.normal_min) statusChip = <Chip label="↓ LOW" color="warning" size="small" sx={{ fontSize: 10, height: 20, ml: 1 }} />;
-                      else if (numVal > item.normal_max) statusChip = <Chip label="↑ HIGH" color="error" size="small" sx={{ fontSize: 10, height: 20, ml: 1 }} />;
-                      else statusChip = <Chip label="✓" color="success" size="small" sx={{ fontSize: 10, height: 20, ml: 1 }} />;
-                    }
-                    return (
-                      <Box key={item.id} sx={{ display: "flex", alignItems: "center", gap: 1, py: 1, px: 2, borderBottom: "1px solid #f1f5f9" }}>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography sx={{ fontSize: 13, fontWeight: 500 }}>{item.test_name}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {item.normal_min != null && item.normal_max != null ? `${item.normal_min}–${item.normal_max} ${item.unit || ""}` : item.unit || ""}
-                          </Typography>
-                        </Box>
-                        <TextField
-                          size="small"
-                          value={val}
-                          onChange={(e) => setResults((p) => ({ ...p, [item.id]: e.target.value }))}
-                          placeholder="Value"
-                          inputProps={{ inputMode: "decimal" }}
-                          sx={{ width: 110 }}
-                        />
-                        {statusChip}
-                        <Tooltip title="Remove from report">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => removeParameter(item)}
-                            aria-label={`Remove ${item.test_name}`}
-                          >
-                            <CloseOutlined fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    );
-                  })}
+                  {group.items.map((item) => (
+                    <ModalResultRow
+                      key={item.id}
+                      item={item}
+                      value={results[item.id] || ""}
+                      onChange={handleResultChange}
+                      onRemove={removeParameter}
+                    />
+                  ))}
                 </Box>
               ));
             })()}

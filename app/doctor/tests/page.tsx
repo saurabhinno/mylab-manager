@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Box, Typography, Card, CardContent, Grid, TextField, Button,
   Alert, Table, TableBody, TableCell, TableContainer, TableHead,
@@ -21,11 +21,76 @@ interface TestParam {
   id?: number;
   name: string;
   unit: string | null;
-  default_min: number | null;
-  default_max: number | null;
+  /** Kept as string while editing so decimal typing is not swallowed */
+  default_min: number | string | null;
+  default_max: number | string | null;
   method: string | null;
   display_order: number;
 }
+
+function parseOptionalNumber(value: number | string | null | undefined): number | null {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+const ParameterRow = React.memo(function ParameterRow({
+  index,
+  param,
+  onChange,
+  onRemove,
+}: {
+  index: number;
+  param: TestParam;
+  onChange: (index: number, field: keyof TestParam, value: string | number | null) => void;
+  onRemove: (index: number) => void;
+}) {
+  return (
+    <Box sx={{ display: "flex", gap: 1, mb: 1.5, alignItems: "center", p: 1.5, bgcolor: "#f8fafc", borderRadius: 1 }}>
+      <Typography sx={{ fontSize: 12, color: "text.secondary", minWidth: 20 }}>{index + 1}.</Typography>
+      <TextField
+        size="small"
+        label="Parameter Name *"
+        value={param.name}
+        onChange={(e) => onChange(index, "name", e.target.value)}
+        sx={{ flex: 2 }}
+      />
+      <TextField
+        size="small"
+        label="Unit"
+        value={param.unit || ""}
+        onChange={(e) => onChange(index, "unit", e.target.value)}
+        sx={{ flex: 1 }}
+      />
+      <TextField
+        size="small"
+        label="Min"
+        value={param.default_min ?? ""}
+        onChange={(e) => onChange(index, "default_min", e.target.value)}
+        inputProps={{ inputMode: "decimal" }}
+        sx={{ width: 90 }}
+      />
+      <TextField
+        size="small"
+        label="Max"
+        value={param.default_max ?? ""}
+        onChange={(e) => onChange(index, "default_max", e.target.value)}
+        inputProps={{ inputMode: "decimal" }}
+        sx={{ width: 90 }}
+      />
+      <TextField
+        size="small"
+        label="Method"
+        value={param.method || ""}
+        onChange={(e) => onChange(index, "method", e.target.value)}
+        sx={{ flex: 1 }}
+      />
+      <IconButton color="error" size="small" onClick={() => onRemove(index)} aria-label="Remove parameter">
+        <RemoveCircleOutlined fontSize="small" />
+      </IconButton>
+    </Box>
+  );
+});
 
 interface TestDefinition {
   id: number;
@@ -132,13 +197,18 @@ export default function DoctorTestsPage() {
     ]);
   }
 
-  function removeParameter(idx: number) {
-    setParameters(parameters.filter((_, i) => i !== idx));
-  }
+  const removeParameter = useCallback((idx: number) => {
+    setParameters((prev) => prev.filter((_, i) => i !== idx));
+  }, []);
 
-  function updateParameter(idx: number, field: string, value: any) {
-    setParameters(parameters.map((p, i) => i === idx ? { ...p, [field]: value } : p));
-  }
+  const updateParameter = useCallback(
+    (idx: number, field: keyof TestParam, value: string | number | null) => {
+      setParameters((prev) =>
+        prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p))
+      );
+    },
+    []
+  );
 
   function toggleExpand(id: number) {
     setExpandedPanels((prev) => {
@@ -185,8 +255,8 @@ export default function DoctorTestsPage() {
         id: p.id,
         name: p.name,
         unit: p.unit || null,
-        defaultMin: p.default_min,
-        defaultMax: p.default_max,
+        defaultMin: parseOptionalNumber(p.default_min),
+        defaultMax: parseOptionalNumber(p.default_max),
         method: p.method || null,
       }));
     }
@@ -405,37 +475,13 @@ export default function DoctorTestsPage() {
                   {errors.parameters && <Alert severity="error" sx={{ mb: 2 }}>{errors.parameters}</Alert>}
 
                   {parameters.map((param, idx) => (
-                    <Box key={idx} sx={{ display: "flex", gap: 1, mb: 1.5, alignItems: "center", p: 1.5, bgcolor: "#f8fafc", borderRadius: 1 }}>
-                      <Typography sx={{ fontSize: 12, color: "text.secondary", minWidth: 20 }}>{idx + 1}.</Typography>
-                      <TextField
-                        size="small" label="Parameter Name *" value={param.name}
-                        onChange={(e) => updateParameter(idx, "name", e.target.value)}
-                        sx={{ flex: 2 }}
-                      />
-                      <TextField
-                        size="small" label="Unit" value={param.unit || ""}
-                        onChange={(e) => updateParameter(idx, "unit", e.target.value)}
-                        sx={{ flex: 1 }}
-                      />
-                      <TextField
-                        size="small" label="Min" type="number" value={param.default_min ?? ""}
-                        onChange={(e) => updateParameter(idx, "default_min", e.target.value ? Number(e.target.value) : null)}
-                        sx={{ width: 80 }}
-                      />
-                      <TextField
-                        size="small" label="Max" type="number" value={param.default_max ?? ""}
-                        onChange={(e) => updateParameter(idx, "default_max", e.target.value ? Number(e.target.value) : null)}
-                        sx={{ width: 80 }}
-                      />
-                      <TextField
-                        size="small" label="Method" value={param.method || ""}
-                        onChange={(e) => updateParameter(idx, "method", e.target.value)}
-                        sx={{ flex: 1 }}
-                      />
-                      <IconButton color="error" size="small" onClick={() => removeParameter(idx)}>
-                        <RemoveCircleOutlined fontSize="small" />
-                      </IconButton>
-                    </Box>
+                    <ParameterRow
+                      key={param.id ?? `new-${idx}`}
+                      index={idx}
+                      param={param}
+                      onChange={updateParameter}
+                      onRemove={removeParameter}
+                    />
                   ))}
                 </Grid>
               )}
