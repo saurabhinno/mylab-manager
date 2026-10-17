@@ -8,6 +8,8 @@ declare global {
       alert?: (message: string) => void;
       confirm?: (message: string) => boolean;
       restoreInputFocus?: () => void;
+      /** Native print dialog — prefer over window.print() in Electron */
+      print?: () => Promise<{ ok?: boolean; error?: string | null }>;
       drive?: {
         getStatus: () => Promise<{
           mode?: string;
@@ -82,6 +84,23 @@ declare global {
           error?: string;
         }>;
         stopLan: () => Promise<{ ok?: boolean; listening?: boolean; error?: string }>;
+        probeHost: (
+          host: string,
+          ports?: number[]
+        ) => Promise<{
+          ok?: boolean;
+          host?: string;
+          openPorts?: number[];
+          hint?: string;
+          ourListen?: { port: number; listening: boolean; selfConnectOk: boolean };
+          addresses?: { name: string; address: string }[];
+          error?: string;
+        }>;
+        connectLan: (
+          host: string,
+          port?: number
+        ) => Promise<{ ok?: boolean; host?: string; port?: number; error?: string }>;
+        disconnectLanClient: () => Promise<{ ok?: boolean; error?: string }>;
         onPorts: (cb: (ports: MylabSerialPort[]) => void) => () => void;
         onData: (
           cb: (p: { path: string; chunk: string; at: string }) => void

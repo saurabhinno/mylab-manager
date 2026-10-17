@@ -35,6 +35,17 @@ function listLocalIpv4() {
       }
     }
   }
+  // Prefer real LAN (DHCP) over APIPA 169.254.x / VPN noise so UI shows the
+  // IP the analyzer should use first.
+  out.sort((a, b) => {
+    const score = (addr) => {
+      if (addr.startsWith("169.254.")) return 2;
+      if (addr.startsWith("10.") || addr.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[0-1])\./.test(addr))
+        return 0;
+      return 1;
+    };
+    return score(a.address) - score(b.address);
+  });
   return out;
 }
 
@@ -383,6 +394,119 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
     });
   }
 
+  function tcpProbe(host, port, timeoutMs = 800) {
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      let done = false;
+      const finish = (ok, err) => {
+        if (done) return;
+        done = true;
+        try {
+          socket.destroy();
+        } catch {
+          /* ignore */
+        }
+        resolve({ port, ok, error: err || null });
+      };
+      socket.setTimeout(timeoutMs);
+      socket.once("connect", () => finish(true));
+      socket.once("timeout", () => finish(false, "timeout"));
+      socket.once("error", (e) => finish(false, e.message || String(e)));
+      try {
+        socket.connect(port, host);
+      } catch (e) {
+        finish(false, e.message || String(e));
+      }
+    });
+  }
+
+  /**
+   * Diagnose path to analyzer. Cellenium Net mode is push-to-LIS (we listen);
+   * outbound connect only helps if the machine is acting as a TCP server.
+   */
+  async function probeHost(host, ports) {
+    const h = String(host || "").trim();
+    if (!h) return { ok: false, error: "Machine IP required" };
+    const list = Array.isArray(ports) && ports.length
+      ? ports.map(Number)
+      : [5100, 2575, 5000, 22, 23, 80];
+    const results = [];
+    for (const p of list) {
+      // eslint-disable-next-line no-await-in-loop
+      results.push(await tcpProbe(h, p));
+    }
+    const open = results.filter((r) => r.ok).map((r) => r.port);
+    const pcLan =
+      listLocalIpv4().find((a) => a.address.startsWith("192.168.10."))?.address ||
+      listLocalIpv4().find((a) => !a.address.startsWith("169.254."))?.address ||
+      "PC-IP";
+    const hint = !lanServer
+      ? "Start LAN listen first — Cellenium pushes HL7 to this PC."
+      : open.includes(Number(lanPort)) || open.includes(5100)
+        ? "Machine is listening on HL7 port — use Connect to pull."
+        : open.length
+          ? `Cable OK (open: ${open.join(",")}). Machine does not serve HL7. On Transmit it must dial ${pcLan}:${lanPort}. If MyLab stays at clients=0, the analyzer is not opening that TCP session (check SETUP Server IP=${pcLan}, Status not Unconnected, Save + reboot). McAfee firewall can also block inbound :${lanPort}.`
+          : "Cannot reach machine TCP ports. Check Ethernet cable and Local IP.";
+    return {
+      ok: true,
+      host: h,
+      openPorts: open,
+      results,
+      ourListen: { port: lanPort, listening: !!lanServer, selfConnectOk: !!lanServer },
+      addresses: listLocalIpv4(),
+      hint,
+    };
+  }
+
+  let lanClientSocket = null;
+
+  function disconnectLanClient() {
+    if (lanClientSocket) {
+      try {
+        lanClientSocket.destroy();
+      } catch {
+        /* ignore */
+      }
+      lanClientSocket = null;
+    }
+  }
+
+  /** Outbound TCP to analyzer (only if machine listens). Same HL7/ASTM framing. */
+  function connectLan(host, port = DEFAULT_LAN_PORT) {
+    const h = String(host || "").trim();
+    const p = Number(port) || DEFAULT_LAN_PORT;
+    if (!h) return Promise.resolve({ ok: false, error: "Machine IP required" });
+    disconnectLanClient();
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        resolve(result);
+      };
+      const socket = net.connect({ host: h, port: p }, () => {
+        socket.setTimeout(0);
+        lanClientSocket = socket;
+        handleLanSocket(socket);
+        finish({ ok: true, host: h, port: p });
+      });
+      socket.setTimeout(5000);
+      socket.once("timeout", () => {
+        socket.destroy();
+        finish({
+          ok: false,
+          error: `Timeout connecting to ${h}:${p} — machine is not accepting (Cellenium Net mode expects machine → PC, not PC → machine).`,
+        });
+      });
+      socket.once("error", (err) => {
+        finish({
+          ok: false,
+          error: err.message || String(err),
+        });
+      });
+    });
+  }
+
   function getStatus() {
     return {
       openPath,
@@ -418,6 +542,9 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
     closeActive,
     startLan,
     stopLan,
+    probeHost,
+    connectLan,
+    disconnectLanClient,
     getStatus,
     getRawBuffer,
     clearRawBuffer,

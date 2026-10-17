@@ -71,6 +71,7 @@ export default function AnalyzersPage({
   const [parsedPreview, setParsedPreview] = useState<any>(null);
   const [lanListening, setLanListening] = useState(false);
   const [lanPort, setLanPort] = useState(5100);
+  const [machineIp, setMachineIp] = useState("192.168.10.2");
   const [lanAddresses, setLanAddresses] = useState<{ name: string; address: string }[]>([]);
   const [lanClients, setLanClients] = useState(0);
   const [lastRemote, setLastRemote] = useState<string | null>(null);
@@ -174,11 +175,26 @@ export default function AnalyzersPage({
             );
           }
         }
-        setAlert({
-          type: "success",
-          msg: `Saved machine message to inbox (#${saved.id})`,
-        });
-        appendLog(`Saved inbox #${saved.id}`);
+        if (saved.auto_created && saved.report_id) {
+          appendLog(
+            `Auto-created CBC report #${saved.report_id} · ${saved.patient_name || "patient"} · applied ${saved.applied ?? "?"}`
+          );
+          setAlert({
+            type: "success",
+            msg: `CBC report #${saved.report_id} created — open Reports to edit/print`,
+          });
+          window.dispatchEvent(
+            new CustomEvent("mylab:report-created", {
+              detail: { reportId: saved.report_id, patientName: saved.patient_name },
+            })
+          );
+        } else {
+          setAlert({
+            type: "success",
+            msg: `Saved machine message to inbox (#${saved.id})`,
+          });
+          appendLog(`Saved inbox #${saved.id}`);
+        }
         await refreshInbox();
       } catch (e: any) {
         appendLog(`Save error: ${e?.message || e}`);
@@ -193,6 +209,22 @@ export default function AnalyzersPage({
     refreshLanStatus();
     appendLog("Analyzers page ready (LAN mode only)");
 
+    // Ensure listen is up (Electron also auto-starts; this covers page-only refresh).
+    void (async () => {
+      try {
+        const st = await window.mylab!.analyzers!.getStatus();
+        if (!st?.lan?.listening) {
+          appendLog(`Auto-starting LAN listen on port ${lanPort}…`);
+          const res = await window.mylab!.analyzers!.startLan(lanPort);
+          if (res?.ok === false) appendLog(`Auto-start FAILED: ${res.error}`);
+        } else {
+          appendLog(`LAN already listening on port ${st.lan.port}`);
+        }
+      } catch (e: any) {
+        appendLog(`Auto-start error: ${e?.message || e}`);
+      }
+    })();
+
     const offRaw = window.mylab.analyzers.onRaw?.((payload) => {
       const preview = payload.chunk.replace(/\r/g, "\\r").replace(/\n/g, "\\n");
       appendLog(`RAW ${payload.path}: ${preview.slice(0, 200)}${preview.length > 200 ? "…" : ""}`);
@@ -200,12 +232,16 @@ export default function AnalyzersPage({
       setRawText(rawAcc.current);
     });
 
+    // Inbox save is handled by AnalyzerLanBridge after login (avoids duplicates).
     const offMessage = window.mylab.analyzers.onMessage?.((payload) => {
       appendLog(`MESSAGE complete from ${payload.path} (${payload.raw.length} bytes)`);
       rawAcc.current = payload.raw;
       setRawText(payload.raw);
       setLastRemote(payload.path);
-      void saveRawToInbox(payload.raw, payload.path);
+      // Bridge saves async — brief delay then refresh inbox list.
+      window.setTimeout(() => {
+        void refreshInbox();
+      }, 400);
     });
 
     const offLan = window.mylab.analyzers.onLan?.((p) => {
@@ -283,6 +319,80 @@ export default function AnalyzersPage({
     }
   }
 
+  async function probeMachine() {
+    if (!window.mylab?.analyzers?.probeHost) return;
+    setBusy(true);
+    setAlert(null);
+    appendLog(`Probing machine ${machineIp}…`);
+    try {
+      const res = await window.mylab.analyzers.probeHost(machineIp, [
+        lanPort,
+        2575,
+        5000,
+        22,
+      ]);
+      if (res?.ok === false) {
+        appendLog(`Probe FAILED: ${res.error}`);
+        setAlert({ type: "error", msg: res.error || "Probe failed" });
+      } else {
+        appendLog(
+          `Probe · openPorts=[${(res.openPorts || []).join(",") || "none"}] · ourListen=${res.ourListen?.listening ? "yes" : "no"} :${res.ourListen?.port}`
+        );
+        appendLog(res.hint || "—");
+        setAlert({
+          type: (res.openPorts || []).includes(lanPort) ? "success" : "info",
+          msg: res.hint || "Probe complete",
+        });
+      }
+    } catch (e: any) {
+      appendLog(`Probe exception: ${e?.message || e}`);
+      setAlert({ type: "error", msg: e?.message || "Probe failed" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function connectToMachine() {
+    if (!window.mylab?.analyzers?.connectLan) return;
+    const host = machineIp.trim();
+    const ownIps = new Set([
+      "127.0.0.1",
+      "localhost",
+      ...lanAddresses.map((a) => a.address),
+    ]);
+    if (ownIps.has(host)) {
+      appendLog(
+        `Connect blocked: ${host} is this PC. Use Machine IP 192.168.10.2 (analyzer), not Server IP ${host}.`
+      );
+      setAlert({
+        type: "error",
+        msg: "Machine IP must be the analyzer (e.g. 192.168.10.2), not this PC. Cellenium Net mode: keep LAN listen on and Transmit from the machine.",
+      });
+      return;
+    }
+    setBusy(true);
+    setAlert(null);
+    appendLog(`Connecting OUT to ${host}:${lanPort}…`);
+    try {
+      const res = await window.mylab.analyzers.connectLan(host, lanPort);
+      if (res?.ok === false) {
+        appendLog(`Connect FAILED: ${res.error}`);
+        setAlert({ type: "error", msg: res.error || "Connect failed" });
+      } else {
+        appendLog(`Connected to ${res.host}:${res.port} — waiting for data…`);
+        setAlert({
+          type: "success",
+          msg: `Connected to ${host}:${lanPort}. If no data appears, use LAN listen (Cellenium pushes to PC).`,
+        });
+      }
+    } catch (e: any) {
+      appendLog(`Connect exception: ${e?.message || e}`);
+      setAlert({ type: "error", msg: e?.message || "Connect failed" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function parseAndSave() {
     const raw = rawAcc.current || rawText;
     if (!raw.trim()) {
@@ -318,6 +428,40 @@ export default function AnalyzersPage({
     } catch (e: any) {
       appendLog(`Apply error: ${e?.message || e}`);
       setAlert({ type: "error", msg: e?.message || "Apply failed" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createCbcFromInbox(id: number, patientName?: string | null) {
+    setBusy(true);
+    try {
+      appendLog(`Creating CBC report from inbox #${id}…`);
+      const res = await apiRequest(`/api/analyzers/inbox/${id}/create-report`, {
+        method: "POST",
+        body: JSON.stringify({
+          patient_name: patientName || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        appendLog(`Create CBC FAILED: ${data.error}`);
+        setAlert({ type: "error", msg: data.error || "Create report failed" });
+      } else {
+        appendLog(
+          `Created report #${data.report_id} for ${data.patient_name} · applied ${data.applied}/${data.mapped_count} CBC values`
+        );
+        setAlert({
+          type: "success",
+          msg: `CBC report #${data.report_id} created with ${data.applied} values filled`,
+        });
+        await refreshInbox();
+        const base = role === "compounder" ? "/compounder/reports" : "/doctor/reports";
+        window.location.href = `${base}/${data.report_id}`;
+      }
+    } catch (e: any) {
+      appendLog(`Create CBC error: ${e?.message || e}`);
+      setAlert({ type: "error", msg: e?.message || "Create report failed" });
     } finally {
       setBusy(false);
     }
@@ -389,6 +533,13 @@ export default function AnalyzersPage({
                     sx={{ width: 110 }}
                     disabled={lanListening}
                   />
+                  <TextField
+                    size="small"
+                    label="Machine IP"
+                    value={machineIp}
+                    onChange={(e) => setMachineIp(e.target.value.trim())}
+                    sx={{ width: 140 }}
+                  />
                   {lanListening ? (
                     <Button
                       size="small"
@@ -408,6 +559,15 @@ export default function AnalyzersPage({
                       onClick={startLanListen}
                     >
                       Start LAN listen
+                    </Button>
+                  )}
+                  <Button size="small" variant="outlined" disabled={busy} onClick={probeMachine}>
+                    Probe machine
+                  </Button>
+                  {/* Cellenium Net is push-only (machine → PC). Outbound connect always fails. */}
+                  {profileId !== "cellenium-21" && (
+                    <Button size="small" variant="outlined" disabled={busy} onClick={connectToMachine}>
+                      Connect to machine
                     </Button>
                   )}
                   <Button size="small" disabled={busy} onClick={refreshLanStatus}>
@@ -436,9 +596,11 @@ export default function AnalyzersPage({
 
               {lanListening ? (
                 <Alert severity="success" sx={{ mb: 1 }}>
-                  Set analyzer <strong>Trans = Net</strong>, <strong>Server IP</strong> = this PC
-                  {lanAddresses[0] ? ` (${lanAddresses[0].address})` : ""},{" "}
-                  <strong>Port = {lanPort}</strong>, protocol <strong>HL7</strong>, then run a CBC.
+                  Listening — waiting for the analyzer to connect. On Cellenium:{" "}
+                  <strong>Trans = Net</strong>, <strong>Server IP = 192.168.10.1</strong>,{" "}
+                  <strong>Port = {lanPort}</strong>, <strong>HL7</strong>, then Transmit.{" "}
+                  <em>Clients: 0</em> is normal until the machine dials in (do not use Connect —
+                  Cellenium pushes to MyLab).
                 </Alert>
               ) : (
                 <Alert severity="info" sx={{ mb: 1 }}>
@@ -560,8 +722,15 @@ export default function AnalyzersPage({
                   Refresh
                 </Button>
               </Stack>
+              <Alert severity="info" sx={{ mb: 1.5 }}>
+                Machine results auto-create a <strong>CBC report</strong> (patient name + values)
+                and show under Reports for edit/print. Inbox only keeps items that failed
+                auto-create.
+              </Alert>
               {inbox.length === 0 ? (
-                <Typography color="text.secondary">No new machine results.</Typography>
+                <Typography color="text.secondary">
+                  No pending inbox items — new transmits create reports automatically.
+                </Typography>
               ) : (
                 <Stack spacing={1.5}>
                   {inbox.map((row) => {
@@ -645,9 +814,17 @@ export default function AnalyzersPage({
                             variant="contained"
                             size="small"
                             disabled={busy}
+                            onClick={() => createCbcFromInbox(row.id, row.patient_name)}
+                          >
+                            Create CBC report
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            disabled={busy}
                             onClick={() => applyInbox(row.id)}
                           >
-                            Apply
+                            Apply to existing
                           </Button>
                           <Button size="small" disabled={busy} onClick={() => ignoreInbox(row.id)}>
                             Ignore

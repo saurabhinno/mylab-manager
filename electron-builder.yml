@@ -43,6 +43,11 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  # Never wipe lab DB / uploads / Drive tokens under %APPDATA%\MyLab
+  deleteAppDataOnUninstall: false
+  # In-place upgrade replaces Program Files only — userData path stays stable via appId
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
 
 linux:
   target:

@@ -1,6 +1,7 @@
 "use client";
 
 import RequireRole from "@/components/RequireRole";
+import AnalyzerLanBridge from "@/components/AnalyzerLanBridge";
 
 export default function CompounderLayout({
   children,
@@ -9,6 +10,9 @@ export default function CompounderLayout({
 }) {
   // Doctors may switch into compounder view; compounders stay here only.
   return (
-    <RequireRole role={["doctor", "compounder"]}>{children}</RequireRole>
+    <RequireRole role={["doctor", "compounder"]}>
+      <AnalyzerLanBridge />
+      {children}
+    </RequireRole>
   );
 }

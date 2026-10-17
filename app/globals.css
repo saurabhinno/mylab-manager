@@ -76,17 +76,19 @@ a.MuiButton-textPrimary:hover {
 }
 
 @media print {
-  @page { margin: 0; size: A4 portrait; }
+  @page { margin: 12mm; size: A4 portrait; }
 
-  body {
+  html, body {
     background: #fff !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
     padding: 0 !important;
     margin: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
-  /* Hide sidebar, drawers, action bars, FABs */
+  /* Hide chrome that blanks Electron print preview */
   .MuiDrawer-root,
   .MuiDrawer-paper,
   .skip-to-content,
@@ -95,11 +97,23 @@ a.MuiButton-textPrimary:hover {
     display: none !important;
   }
 
-  /* Report pages: each fills a printed page */
+  /* Un-flex layout so Chromium paints report content for print */
+  #main-content,
+  #__next,
+  main {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+
+  /* One physical page per panel — keep CBC (many rows) on a single sheet */
   .report-page {
     width: 100% !important;
-    min-height: 100vh !important;
+    min-height: 0 !important;
     max-height: 100vh !important;
+    height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
@@ -107,10 +121,32 @@ a.MuiButton-textPrimary:hover {
     overflow: hidden !important;
     page-break-after: always !important;
     break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    display: flex !important;
+    flex-direction: column !important;
   }
 
   .report-page:last-child {
     page-break-after: auto !important;
     break-after: auto !important;
+  }
+
+  .report-page--compact .report-results-table td,
+  .report-page--compact .report-results-table th {
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+    font-size: 9.5px !important;
+    line-height: 1.2 !important;
+  }
+
+  .report-page--compact .report-header {
+    padding-top: 6px !important;
+    padding-bottom: 4px !important;
+  }
+
+  .report-page--compact .report-footer {
+    padding-top: 4px !important;
+    padding-bottom: 6px !important;
   }
 }

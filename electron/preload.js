@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld("mylab", {
   confirm: (message) =>
     ipcRenderer.sendSync("dialog:confirm", String(message ?? "")),
   restoreInputFocus: () => ipcRenderer.send("dialog:restore-focus"),
+  /** Opens a PDF print preview window (system dialog has no preview in Electron). */
+  print: () => ipcRenderer.invoke("print:page"),
   drive: {
     getStatus: () => ipcRenderer.invoke("drive:getStatus"),
     backupNow: () => ipcRenderer.invoke("drive:backupNow"),
@@ -37,6 +39,9 @@ contextBridge.exposeInMainWorld("mylab", {
     close: () => ipcRenderer.invoke("analyzers:close"),
     startLan: (port) => ipcRenderer.invoke("analyzers:startLan", port),
     stopLan: () => ipcRenderer.invoke("analyzers:stopLan"),
+    probeHost: (host, ports) => ipcRenderer.invoke("analyzers:probeHost", host, ports),
+    connectLan: (host, port) => ipcRenderer.invoke("analyzers:connectLan", host, port),
+    disconnectLanClient: () => ipcRenderer.invoke("analyzers:disconnectLanClient"),
     onPorts: (callback) => {
       const handler = (_event, ports) => callback(ports);
       ipcRenderer.on("analyzers:ports", handler);

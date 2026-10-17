@@ -1,8 +1,9 @@
-const { app, BrowserWindow, shell, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, dialog, ipcMain, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
 const { spawn } = require("child_process");
+const { pathToFileURL } = require("url");
 const {
   setupAutoUpdater,
   checkForUpdatesManual,
@@ -266,6 +267,102 @@ function registerDialogIpc() {
   ipcMain.on("dialog:restore-focus", (event) => {
     restoreWindowFocus(BrowserWindow.fromWebContents(event.sender));
   });
+
+  // Windows system print dialog shows "doesn't support print preview" for Electron.
+  // Fix: render report to PDF (uses @media print CSS), open a preview window,
+  // then print from there / open in the system PDF viewer.
+  ipcMain.handle("print:page", async (event) => {
+    const wc = event.sender;
+    const parent = BrowserWindow.fromWebContents(wc);
+    try {
+      if (parent && !parent.isDestroyed()) {
+        if (parent.isMinimized()) parent.restore();
+        parent.focus();
+      }
+
+      const pdfBuffer = await wc.printToPDF({
+        printBackground: true,
+        pageSize: "A4",
+        preferCSSPageSize: true,
+        margins: { marginType: "default" },
+      });
+
+      const filePath = path.join(
+        app.getPath("temp"),
+        `mylab-report-${Date.now()}.pdf`
+      );
+      fs.writeFileSync(filePath, pdfBuffer);
+
+      const previewWin = new BrowserWindow({
+        width: 920,
+        height: 1080,
+        minWidth: 640,
+        minHeight: 720,
+        title: "MyLab — Print preview",
+        backgroundColor: "#525659",
+        autoHideMenuBar: false,
+        parent: parent || undefined,
+        show: false,
+      });
+
+      // Electron's own Print on a PDF often fails with USB printers and shows
+      // "doesn't support print preview". Opening in the system PDF viewer
+      // (Edge / Adobe) is the reliable way to print to Epson/HP USB printers.
+      const openSystemViewer = () => {
+        shell.openPath(filePath).catch((e) => log("openPath failed", e));
+      };
+
+      const printViaElectron = () => {
+        if (previewWin.isDestroyed()) return;
+        previewWin.webContents.print({}, () => {});
+      };
+
+      previewWin.setMenu(
+        Menu.buildFromTemplate([
+          {
+            label: "File",
+            submenu: [
+              {
+                label: "Print via Windows viewer…",
+                accelerator: "CmdOrCtrl+P",
+                click: openSystemViewer,
+              },
+              {
+                label: "Print via Electron (may fail)",
+                click: printViaElectron,
+              },
+              { type: "separator" },
+              { label: "Close", role: "close" },
+            ],
+          },
+        ])
+      );
+
+      await previewWin.loadURL(pathToFileURL(filePath).href);
+      previewWin.once("ready-to-show", () => {
+        previewWin.show();
+        // Auto-open system viewer so Print works with USB printers
+        openSystemViewer();
+      });
+
+      return { ok: true, mode: "pdf-preview", path: filePath };
+    } catch (err) {
+      log("print:page PDF preview failed", err);
+      // Last resort: system print dialog (no preview on Windows)
+      return new Promise((resolve) => {
+        try {
+          wc.print({}, (success, failureReason) => {
+            resolve({
+              ok: !!success,
+              error: success ? null : failureReason || "Print cancelled",
+            });
+          });
+        } catch (e) {
+          resolve({ ok: false, error: e?.message || String(e) });
+        }
+      });
+    }
+  });
 }
 
 function stopChildren() {
@@ -370,8 +467,42 @@ function initAnalyzers() {
       return { ok: false, error: err && err.message ? err.message : String(err) };
     }
   });
+  ipcMain.handle("analyzers:probeHost", async (_e, host, ports) => {
+    try {
+      return await analyzers.probeHost(host, ports);
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+  });
+  ipcMain.handle("analyzers:connectLan", async (_e, host, port) => {
+    try {
+      return await analyzers.connectLan(host, port);
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+  });
+  ipcMain.handle("analyzers:disconnectLanClient", async () => {
+    try {
+      analyzers.disconnectLanClient();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+  });
 
   analyzers.startPolling();
+  // Cellenium Net/HL7: listen as soon as desktop starts so the machine can
+  // push without the operator opening Analyzers or clicking Start.
+  analyzers
+    .startLan()
+    .then((res) => {
+      if (res && res.ok) {
+        log(`LAN auto-listen on port ${res.port || 5100}`);
+      } else {
+        log("LAN auto-listen failed", res && res.error);
+      }
+    })
+    .catch((err) => log("LAN auto-listen error", err));
 }
 
 /**

@@ -1,11 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import ReportCreateWizard from "@/components/ReportCreateWizard";
 
-// Redirect to reports page — sample collection is now a dialog there
-export default function NewReportRedirect() {
-  const router = useRouter();
-  useEffect(() => { router.replace("/compounder/reports"); }, [router]);
-  return null;
+export default function NewReportPage() {
+  return <ReportCreateWizard role="compounder" />;
 }

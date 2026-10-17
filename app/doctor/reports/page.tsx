@@ -8,7 +8,7 @@ import {
 } from "@mui/material";
 import {
   SearchOutlined, TodayOutlined, DateRangeOutlined, ClearOutlined,
-  DeleteOutlined, PaymentOutlined,
+  DeleteOutlined, PaymentOutlined, EditOutlined,
 } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
@@ -43,7 +43,12 @@ export default function DoctorReportsPage() {
       .then((d) => { setReports(Array.isArray(d) ? d : []); setLoading(false); })
       .catch(() => setLoading(false));
 
-  useEffect(() => { loadReports(); }, []);
+  useEffect(() => {
+    loadReports();
+    const onCreated = () => loadReports();
+    window.addEventListener("mylab:report-created", onCreated);
+    return () => window.removeEventListener("mylab:report-created", onCreated);
+  }, []);
 
   async function togglePayment(r: Report) {
     const next = r.payment_status === "paid" ? "unpaid" : "paid";
@@ -251,6 +256,11 @@ export default function DoctorReportsPage() {
                         <Button size="small" variant="text" href={`/doctor/reports/${r.id}`} sx={{ fontSize: 11, minWidth: 0 }} aria-label={`View report ${r.id}`}>
                           {t("reports.col_view")}
                         </Button>
+                        <Tooltip title={t("common.edit")}>
+                          <IconButton size="small" color="primary" href={`/doctor/reports/${r.id}/edit`} aria-label={`Edit report ${r.id}`}>
+                            <EditOutlined fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title={t("common.delete")}>
                           <IconButton size="small" color="error" onClick={() => handleDelete(r)} aria-label={`Delete report ${r.id}`}>
                             <DeleteOutlined fontSize="small" />
