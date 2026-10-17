@@ -1,6 +1,9 @@
 appId: com.mylab.desktop
 productName: MyLab
 copyright: Copyright © MyLab
+# Rebuild serialport separately in CI (with-msvc + Python 3.11) before electron-builder.
+# Letting electron-builder rebuild picks VS's Python 3.12+ without distutils and fails.
+npmRebuild: false
 
 directories:
   output: release

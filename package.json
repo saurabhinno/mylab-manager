@@ -1,10 +1,12 @@
 {
   "name": "mylab",
-  "version": "0.2.23",
+  "version": "0.2.24",
   "private": true,
+  "author": "MyLab",
   "description": "MyLab — local desktop blood test diagnostics portal",
   "main": "electron/main.js",
   "scripts": {
+    "desktop:rebuild-native": "electron-builder install-app-deps",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -24,7 +26,7 @@
   "dependencies": {
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
-    "@mui/icons-material": "^5.15.0",
+    "@mui/icons-material": "^5.18.0",
     "@mui/material": "^5.15.0",
     "@mui/system": "^9.0.1",
     "archiver": "^8.0.0",

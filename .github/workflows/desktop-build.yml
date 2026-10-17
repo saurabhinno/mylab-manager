@@ -37,15 +37,39 @@ jobs:
           node-version: "20"
           cache: npm
 
+      # node-gyp still imports distutils — missing on Python 3.12+ runners
+      - name: Setup Python 3.11 for node-gyp
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Ensure setuptools (distutils)
+        run: python -m pip install --upgrade setuptools wheel
+
+      - name: Pin Python path for node-gyp
+        shell: pwsh
+        run: |
+          $py = python -c "import sys; print(sys.executable)"
+          python -c "import distutils; print('distutils OK')"
+          echo "PYTHON=$py" >> $env:GITHUB_ENV
+          echo "npm_config_python=$py" >> $env:GITHUB_ENV
+          Write-Host "PYTHON=$py"
+
       - name: Install root dependencies
         run: npm ci
-        env:
-          # Skip native rebuild during install; electron-builder runs it with MSVC
-          npm_config_ignore_scripts: "false"
 
       - name: Install API dependencies
         working-directory: express-api
         run: npm ci
+
+      # Rebuild serialport for Electron ABI before pack (electron-builder npmRebuild is false)
+      - name: Rebuild native modules for Electron
+        shell: pwsh
+        env:
+          GYP_MSVS_VERSION: "2022"
+          npm_config_msvs_version: "2022"
+        run: |
+          ./scripts/with-msvc.ps1 npx --yes @electron/rebuild -f -o @serialport/bindings-cpp -v 34.5.8
 
       - name: Build Windows installer
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
@@ -53,15 +77,12 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          GYP_MSVS_VERSION: "2022"
-          npm_config_msvs_version: "2022"
           MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN || vars.MYLAB_GH_UPDATE_TOKEN }}
           MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL || vars.MYLAB_UPDATE_FEED_URL }}
           GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID || vars.GOOGLE_DRIVE_CLIENT_ID }}
           GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET || vars.GOOGLE_DRIVE_CLIENT_SECRET }}
           GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN || vars.GOOGLE_DRIVE_REFRESH_TOKEN }}
-        run: |
-          ./scripts/with-msvc.ps1 npm run desktop:build:win
+        run: npm run desktop:build:win
 
       - name: Publish Windows installer to GitHub Release
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -69,16 +90,13 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          GYP_MSVS_VERSION: "2022"
-          npm_config_msvs_version: "2022"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN || vars.MYLAB_GH_UPDATE_TOKEN }}
           MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL || vars.MYLAB_UPDATE_FEED_URL }}
           GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID || vars.GOOGLE_DRIVE_CLIENT_ID }}
           GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET || vars.GOOGLE_DRIVE_CLIENT_SECRET }}
           GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN || vars.GOOGLE_DRIVE_REFRESH_TOKEN }}
-        run: |
-          ./scripts/with-msvc.ps1 npm run desktop:publish:win
+        run: npm run desktop:publish:win
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -111,8 +129,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Ensure setuptools (distutils)
+        run: python -m pip install --upgrade setuptools wheel
+
       - name: Install root dependencies
         run: npm ci
+        env:
+          npm_config_python: python
 
       - name: Install API dependencies
         working-directory: express-api
