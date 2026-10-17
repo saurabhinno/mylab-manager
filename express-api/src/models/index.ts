@@ -252,6 +252,23 @@ async function ensureLabSettingsCatalogueColumns() {
   }
 }
 
+/** SQLite does not alter existing tables on sync — add report item order if missing. */
+async function ensureReportItemDisplayOrder() {
+  if (!isSqlite) return;
+  try {
+    const [cols] = await sequelize.query("PRAGMA table_info(report_items)");
+    const names = new Set((cols as { name: string }[]).map((c) => c.name));
+    if (!names.has("display_order")) {
+      await sequelize.query(
+        "ALTER TABLE report_items ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0"
+      );
+      console.log("Added report_items.display_order column");
+    }
+  } catch (err) {
+    console.warn("Could not ensure report_items.display_order", err);
+  }
+}
+
 /** SQLite: add reports.daily_number if missing, then backfill day-wise sequences. */
 async function ensureReportDailyNumber() {
   try {
@@ -404,6 +421,7 @@ export const initDatabase = async () => {
   await AnalyzerInbox.sync(syncOpts);
   await ensureLabSettingsCatalogueColumns();
   await ensureReportDailyNumber();
+  await ensureReportItemDisplayOrder();
 
   // Seed default doctor if not exists
   const defaultDoctor = await User.findOne({ where: { email: "doctor@mylab.com" } });

@@ -9,6 +9,101 @@ import { allocateTodayReportNumber } from "@/lib/dailyReportNumber";
 
 const router = Router();
 
+const reportItemsInclude = {
+  model: ReportItem,
+  as: "reportItems" as const,
+  separate: true,
+  order: [
+    ["display_order", "ASC"],
+    ["id", "ASC"],
+  ] as [string, string][],
+};
+
+function sortedParams(def: TestDefinition): TestDefinition[] {
+  const params = ((def as unknown as { parameters?: TestDefinition[] }).parameters || []);
+  return [...params].sort(
+    (a, b) => (a.display_order || 0) - (b.display_order || 0) || a.id - b.id
+  );
+}
+
+function orderDefinitions(defs: TestDefinition[], testIds: number[]): TestDefinition[] {
+  const byId = new Map(defs.map((def) => [def.id, def]));
+  const ordered: TestDefinition[] = [];
+  const seen = new Set<number>();
+  for (const raw of testIds) {
+    const def = byId.get(Number(raw));
+    if (!def || seen.has(def.id)) continue;
+    seen.add(def.id);
+    ordered.push(def);
+  }
+  return ordered;
+}
+
+async function nextDisplayOrder(reportId: number): Promise<number> {
+  const max = await ReportItem.max("display_order", { where: { report_id: reportId } });
+  const n = typeof max === "number" ? max : Number(max);
+  return (Number.isFinite(n) ? n : 0) + 1;
+}
+
+/** Append a panel's parameters (or one standalone test) and return the next display order. */
+async function addDefinitionItems(
+  reportId: number,
+  def: TestDefinition,
+  startOrder: number
+): Promise<number> {
+  let order = startOrder;
+  const params = sortedParams(def);
+  if (def.is_panel && params.length > 0) {
+    for (const param of params) {
+      const exists = await ReportItem.findOne({
+        where: {
+          report_id: reportId,
+          test_definition_id: param.id,
+          panel_name: def.name,
+        },
+      });
+      if (exists) continue;
+      await ReportItem.create({
+        report_id: reportId,
+        test_definition_id: param.id,
+        test_name: param.name,
+        sample_type: param.sample_type || def.sample_type || null,
+        result_type: "numeric",
+        result_value: "",
+        unit: param.unit || null,
+        normal_min: param.default_min,
+        normal_max: param.default_max,
+        note: null,
+        price: 0,
+        panel_name: def.name,
+        display_order: order++,
+      });
+    }
+    return order;
+  }
+
+  const exists = await ReportItem.findOne({
+    where: { report_id: reportId, test_definition_id: def.id },
+  });
+  if (exists) return order;
+  await ReportItem.create({
+    report_id: reportId,
+    test_definition_id: def.id,
+    test_name: def.name,
+    sample_type: def.sample_type || null,
+    result_type: "numeric",
+    result_value: "",
+    unit: def.unit || null,
+    normal_min: def.default_min,
+    normal_max: def.default_max,
+    note: null,
+    price: def.price,
+    panel_name: null,
+    display_order: order++,
+  });
+  return order;
+}
+
 async function requireUser(req: Request) {
   const userId = getUserIdFromCookie(req.cookies);
   if (!userId) return null;
@@ -20,7 +115,7 @@ router.get("/", async (req: Request, res: Response) => {
   try {
     const reports = await Report.findAll({
       include: [
-        { model: ReportItem, as: "reportItems" },
+        reportItemsInclude,
         { model: User, as: "compounder", attributes: ["id", "name", "email"] },
       ],
       order: [["createdAt", "DESC"]],
@@ -36,7 +131,7 @@ router.get("/", async (req: Request, res: Response) => {
 router.get("/:id", async (req: Request, res: Response) => {
   try {
     const report = await Report.findByPk(req.params.id, {
-      include: [{ model: ReportItem, as: "reportItems" }],
+      include: [reportItemsInclude],
     });
     if (!report) {
       return res.status(404).json({ error: "Report not found." });
@@ -68,10 +163,13 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     const testIds = tests.map((t: any) => t.testId || t);
-    const testDefinitions = await TestDefinition.findAll({
-      where: { id: testIds },
-      include: [{ model: TestDefinition, as: "parameters", order: [["display_order", "ASC"]] }],
-    });
+    const testDefinitions = orderDefinitions(
+      await TestDefinition.findAll({
+        where: { id: testIds },
+        include: [{ model: TestDefinition, as: "parameters" }],
+      }),
+      testIds
+    );
     const totalPrice = testDefinitions.reduce((sum, test) => sum + test.price, 0);
 
     const actor = await requireUser(req);
@@ -105,44 +203,9 @@ router.post("/", async (req: Request, res: Response) => {
       doctor_id: doctor.id,
     });
 
-    // Create report items: for panels, create items for each child parameter
+    let displayOrder = 1;
     for (const def of testDefinitions) {
-      const params = (def as any).parameters || [];
-      if (def.is_panel && params.length > 0) {
-        // Panel test: create report items for each parameter
-        for (const param of params) {
-          await ReportItem.create({
-            report_id: report.id,
-            test_definition_id: param.id,
-            test_name: param.name,
-            sample_type: param.sample_type || def.sample_type || null,
-            result_type: "numeric",
-            result_value: "",
-            unit: param.unit || null,
-            normal_min: param.default_min,
-            normal_max: param.default_max,
-            note: null,
-            price: 0,
-            panel_name: def.name,
-          });
-        }
-      } else {
-        // Standalone test: create single report item
-        await ReportItem.create({
-          report_id: report.id,
-          test_definition_id: def.id,
-          test_name: def.name,
-          sample_type: def.sample_type || null,
-          result_type: "numeric",
-          result_value: "",
-          unit: def.unit || null,
-          normal_min: def.default_min,
-          normal_max: def.default_max,
-          note: null,
-          price: def.price,
-          panel_name: null,
-        });
-      }
+      displayOrder = await addDefinitionItems(report.id, def, displayOrder);
     }
 
     return res.json({
@@ -158,65 +221,22 @@ router.post("/", async (req: Request, res: Response) => {
 
 /** Shared: append panel/standalone tests onto an existing report. */
 async function appendTestsToReport(report: Report, testIds: number[]) {
-  const testDefinitions = await TestDefinition.findAll({
-    where: { id: testIds },
-    include: [{ model: TestDefinition, as: "parameters" }],
-  });
+  const testDefinitions = orderDefinitions(
+    await TestDefinition.findAll({
+      where: { id: testIds },
+      include: [{ model: TestDefinition, as: "parameters" }],
+    }),
+    testIds
+  );
   if (!testDefinitions.length) {
     throw new Error("No matching tests found");
   }
 
   let addedPrice = 0;
+  let displayOrder = await nextDisplayOrder(report.id);
   for (const def of testDefinitions) {
     addedPrice += def.price || 0;
-    const params = ([...((def as any).parameters || [])] as TestDefinition[]).sort(
-      (a, b) => (a.display_order || 0) - (b.display_order || 0)
-    );
-    if (def.is_panel && params.length > 0) {
-      for (const param of params) {
-        const exists = await ReportItem.findOne({
-          where: {
-            report_id: report.id,
-            test_definition_id: param.id,
-            panel_name: def.name,
-          },
-        });
-        if (exists) continue;
-        await ReportItem.create({
-          report_id: report.id,
-          test_definition_id: param.id,
-          test_name: param.name,
-          sample_type: param.sample_type || def.sample_type || null,
-          result_type: "numeric",
-          result_value: "",
-          unit: param.unit || null,
-          normal_min: param.default_min,
-          normal_max: param.default_max,
-          note: null,
-          price: 0,
-          panel_name: def.name,
-        });
-      }
-    } else {
-      const exists = await ReportItem.findOne({
-        where: { report_id: report.id, test_definition_id: def.id },
-      });
-      if (exists) continue;
-      await ReportItem.create({
-        report_id: report.id,
-        test_definition_id: def.id,
-        test_name: def.name,
-        sample_type: def.sample_type || null,
-        result_type: "numeric",
-        result_value: "",
-        unit: def.unit || null,
-        normal_min: def.default_min,
-        normal_max: def.default_max,
-        note: null,
-        price: def.price,
-        panel_name: null,
-      });
-    }
+    displayOrder = await addDefinitionItems(report.id, def, displayOrder);
   }
 
   report.total_price = Number(report.total_price || 0) + addedPrice;
@@ -282,7 +302,7 @@ router.post("/:id/tests", async (req: Request, res: Response) => {
     const added = await appendTestsToReport(report, testIds);
 
     const full = await Report.findByPk(report.id, {
-      include: [{ model: ReportItem, as: "reportItems" }],
+      include: [reportItemsInclude],
     });
     return res.json({ success: true, added, report: full });
   } catch (error: any) {
@@ -315,6 +335,52 @@ router.delete("/:id/items/:itemId", async (req: Request, res: Response) => {
     }
 
     await item.destroy();
+    return res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Reorder parameters on a report. orderedIds is the full item list, top to bottom.
+router.put("/:id/item-order", async (req: Request, res: Response) => {
+  try {
+    const actor = await requireUser(req);
+    if (!actor) return res.status(401).json({ error: "Not authenticated" });
+
+    const report = await Report.findByPk(req.params.id);
+    if (!report) return res.status(404).json({ error: "Report not found." });
+
+    const orderedIds: number[] = Array.isArray(req.body?.orderedIds)
+      ? req.body.orderedIds.map((id: unknown) => Number(id)).filter((id: number) => Number.isFinite(id))
+      : [];
+    if (!orderedIds.length) {
+      return res.status(400).json({ error: "orderedIds is required." });
+    }
+
+    const items = await ReportItem.findAll({ where: { report_id: report.id } });
+    const byId = new Map(items.map((item) => [item.id, item]));
+    let order = 1;
+    for (const id of orderedIds) {
+      const item = byId.get(id);
+      if (!item) continue;
+      if (item.display_order !== order) {
+        item.display_order = order;
+        await item.save();
+      }
+      byId.delete(id);
+      order += 1;
+    }
+
+    const rest = [...byId.values()].sort(
+      (a, b) => (a.display_order || 0) - (b.display_order || 0) || a.id - b.id
+    );
+    for (const item of rest) {
+      item.display_order = order;
+      await item.save();
+      order += 1;
+    }
+
     return res.json({ success: true });
   } catch (error) {
     console.error(error);

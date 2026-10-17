@@ -12,35 +12,29 @@ import {
   FormControl,
   FormControlLabel,
   Grid,
-  IconButton,
   InputAdornment,
   InputLabel,
   MenuItem,
   Select,
   Stack,
   Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import {
   ArrowBackOutlined,
   ArrowForwardOutlined,
   CheckCircleOutlined,
-  CloseOutlined,
   SaveOutlined,
   ScienceOutlined,
   SearchOutlined,
 } from "@mui/icons-material";
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
+import SortableParameterTable from "@/components/SortableParameterTable";
+import { useReportItemOrder } from "@/components/useReportItemOrder";
 import { apiRequest } from "@/lib/api";
+import { applyGroupReorder } from "@/lib/reorder";
 import { reportDisplayNumber } from "@/lib/reportNumber";
 
 type TestDef = {
@@ -179,6 +173,11 @@ export default function ReportEditWizard({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const reportOrderError = useCallback((msg: string) => {
+    setAlert({ type: "error", msg });
+  }, []);
+  const persistItemOrder = useReportItemOrder(report, setReport, reportOrderError);
 
   const resultPages = useMemo(
     () => groupItemsIntoPages(report?.reportItems || []),
@@ -604,7 +603,7 @@ export default function ReportEditWizard({
                   {patientName}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  One page per test/panel · Remove any parameter · Save draft anytime
+                  One page per test/panel · Drag parameters to reorder · Remove any parameter · Save draft anytime
                 </Typography>
               </Box>
               <Button size="small" onClick={() => setStep(1)}>
@@ -651,86 +650,24 @@ export default function ReportEditWizard({
                   </Typography>
                 </Box>
 
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Parameter</TableCell>
-                        <TableCell>Reference</TableCell>
-                        <TableCell>Result</TableCell>
-                        <TableCell align="right" width={56} />
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {currentResultPage.items.map((item) => {
-                        const val = results[item.id] ?? "";
-                        const num = parseFloat(val);
-                        let flag = "";
-                        if (
-                          val &&
-                          !isNaN(num) &&
-                          item.normal_min != null &&
-                          item.normal_max != null
-                        ) {
-                          if (num < item.normal_min) flag = "LOW";
-                          else if (num > item.normal_max) flag = "HIGH";
-                        }
-                        const range =
-                          item.normal_min != null && item.normal_max != null
-                            ? `${item.normal_min} – ${item.normal_max}`
-                            : "";
-                        return (
-                          <TableRow key={item.id}>
-                            <TableCell>
-                              <Typography variant="body2" fontWeight={500}>
-                                {item.test_name}
-                              </Typography>
-                            </TableCell>
-                            <TableCell sx={{ whiteSpace: "nowrap", color: "text.secondary", fontSize: 12 }}>
-                              {[range, item.unit].filter(Boolean).join(" ") || "—"}
-                            </TableCell>
-                            <TableCell>
-                              <Stack direction="row" spacing={1} alignItems="center">
-                                <TextField
-                                  size="small"
-                                  value={val}
-                                  onChange={(e) =>
-                                    setResults((prev) => ({ ...prev, [item.id]: e.target.value }))
-                                  }
-                                  sx={{ width: 120 }}
-                                  autoFocus={item.id === currentResultPage.items[0]?.id}
-                                />
-                                {flag && (
-                                  <Chip
-                                    size="small"
-                                    label={flag}
-                                    color={flag === "HIGH" ? "error" : "warning"}
-                                    sx={{ height: 22, fontSize: 10 }}
-                                  />
-                                )}
-                              </Stack>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Tooltip title="Remove parameter">
-                                <span>
-                                  <IconButton
-                                    size="small"
-                                    color="error"
-                                    disabled={saving || (report.reportItems || []).length <= 1}
-                                    onClick={() => void removeParameter(item)}
-                                    aria-label={`Remove ${item.test_name}`}
-                                  >
-                                    <CloseOutlined fontSize="small" />
-                                  </IconButton>
-                                </span>
-                              </Tooltip>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                <SortableParameterTable
+                  items={currentResultPage.items}
+                  results={results}
+                  onResultChange={(id, value) =>
+                    setResults((prev) => ({ ...prev, [id]: value }))
+                  }
+                  onRemove={(item) => void removeParameter(item)}
+                  removeDisabled={saving || (report?.reportItems || []).length <= 1}
+                  onReorder={(nextGroup) => {
+                    if (!report) return;
+                    const nextItems = applyGroupReorder(
+                      report.reportItems || [],
+                      currentResultPage.items,
+                      nextGroup
+                    );
+                    void persistItemOrder(nextItems);
+                  }}
+                />
               </>
             )}
 

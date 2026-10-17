@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState, useRef } from "react";
+import type { DragEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Box, Typography, Card, CardContent, TextField, Button, Alert,
@@ -9,10 +10,13 @@ import {
 } from "@mui/material";
 import {
   SaveOutlined, ArrowBackOutlined, CheckCircleOutlined,
-  PaymentOutlined, DeleteOutlined, CloseOutlined,
+  PaymentOutlined, DeleteOutlined, CloseOutlined, DragIndicatorOutlined,
 } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
+import { useDragReorder } from "@/components/useDragReorder";
+import { useReportItemOrder } from "@/components/useReportItemOrder";
 import { apiRequest } from "@/lib/api";
+import { applyGroupReorder } from "@/lib/reorder";
 import { useUser } from "@/lib/useUser";
 import { reportDisplayNumber } from "@/lib/reportNumber";
 
@@ -47,6 +51,11 @@ const ResultInputRow = React.memo(function ResultInputRow({
   onKeyDown,
   onRemove,
   inputRef,
+  canDrag,
+  dragging,
+  dropTarget,
+  rowDrag,
+  grip,
 }: {
   item: ReportItemData;
   value: string;
@@ -54,11 +63,55 @@ const ResultInputRow = React.memo(function ResultInputRow({
   onKeyDown: (e: React.KeyboardEvent, id: number) => void;
   onRemove: (item: ReportItemData) => void;
   inputRef: (id: number, el: HTMLInputElement | null) => void;
+  canDrag: boolean;
+  dragging: boolean;
+  dropTarget: boolean;
+  rowDrag: {
+    onDragOver: (event: DragEvent) => void;
+    onDrop: (event: DragEvent) => void;
+  } | null;
+  grip: {
+    draggable: true;
+    tabIndex: number;
+    role: "button";
+    "aria-label": string;
+    onDragStart: (event: DragEvent) => void;
+    onDragEnd: () => void;
+    onKeyDown: (event: ReactKeyboardEvent) => void;
+  } | null;
 }) {
   const status = resultStatus(item, value);
   const isAbnormal = status === "high" || status === "low";
   return (
-    <TableRow sx={{ bgcolor: isAbnormal ? "#fef2f2" : "transparent" }}>
+    <TableRow
+      data-drag-row
+      {...(rowDrag ?? {})}
+      sx={{
+        bgcolor: dropTarget ? "#e8f2fb" : isAbnormal ? "#fef2f2" : "transparent",
+        opacity: dragging ? 0.55 : 1,
+      }}
+    >
+      {canDrag && grip && (
+        <TableCell sx={{ width: 36, px: 0.5 }}>
+          <Box
+            component="span"
+            title="Drag to reorder"
+            {...grip}
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              cursor: "grab",
+              color: "text.disabled",
+              p: 0.5,
+              borderRadius: 1,
+              "&:active": { cursor: "grabbing" },
+              "&:focus-visible": { outline: "2px solid #0f4c81" },
+            }}
+          >
+            <DragIndicatorOutlined fontSize="small" />
+          </Box>
+        </TableCell>
+      )}
       <TableCell sx={{ fontWeight: 500, fontSize: 13 }}>{item.test_name}</TableCell>
       <TableCell sx={{ fontSize: 12, color: "text.secondary", whiteSpace: "nowrap" }}>
         {[
@@ -107,6 +160,76 @@ const ResultInputRow = React.memo(function ResultInputRow({
     </TableRow>
   );
 });
+
+function ResultGroupCard({
+  group,
+  results,
+  onChange,
+  onKeyDown,
+  onRemove,
+  onReorder,
+  inputRef,
+}: {
+  group: { panelName: string | null; items: ReportItemData[] };
+  results: Record<number, string>;
+  onChange: (id: number, value: string) => void;
+  onKeyDown: (e: React.KeyboardEvent, id: number) => void;
+  onRemove: (item: ReportItemData) => void;
+  onReorder: (group: ReportItemData[], next: ReportItemData[]) => void;
+  inputRef: (id: number, el: HTMLInputElement | null) => void;
+}) {
+  const drag = useDragReorder(group.items, (next) => onReorder(group.items, next));
+  const canDrag = group.items.length > 1;
+
+  return (
+    <Card sx={{ mb: 2, borderRadius: 2 }}>
+      {group.panelName && (
+        <CardContent sx={{ pb: 0, bgcolor: "#f0f7ff", borderBottom: "1px solid #e2e8f0" }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#0f4c81" }}>
+            {group.panelName}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {group.items.length} parameters{canDrag ? " · drag to reorder" : ""}
+          </Typography>
+        </CardContent>
+      )}
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ "& th": { fontWeight: 600, fontSize: 12, color: "text.secondary", bgcolor: "#f8fafc" } }}>
+              {canDrag && <TableCell width={36} />}
+              <TableCell>Test Parameter</TableCell>
+              <TableCell>Reference Range</TableCell>
+              <TableCell>Result</TableCell>
+              <TableCell align="center">Status</TableCell>
+              <TableCell align="center" width={48} />
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {group.items.map((item, index) => (
+              <ResultInputRow
+                key={item.id}
+                item={item}
+                value={results[item.id] || ""}
+                onChange={onChange}
+                onKeyDown={onKeyDown}
+                onRemove={onRemove}
+                inputRef={inputRef}
+                canDrag={canDrag}
+                dragging={drag.dragIndex === index}
+                dropTarget={
+                  drag.overIndex === index && drag.dragIndex != null && drag.dragIndex !== index
+                }
+                rowDrag={canDrag ? drag.rowProps(index) : null}
+                grip={canDrag ? drag.handleProps(index) : null}
+              />
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Card>
+  );
+}
 
 interface ReportData {
   id: number;
@@ -172,6 +295,21 @@ export default function EnterResultsPage() {
     }
     return groups;
   }
+
+  const reportOrderError = useCallback((msg: string) => {
+    setAlert({ type: "error", msg });
+    setTimeout(() => setAlert(null), 4000);
+  }, []);
+  const persistItemOrder = useReportItemOrder(report, setReport, reportOrderError);
+
+  const reorderGroup = useCallback(
+    (group: ReportItemData[], nextGroup: ReportItemData[]) => {
+      if (!report) return;
+      const nextItems = applyGroupReorder(report.reportItems, group, nextGroup);
+      void persistItemOrder(nextItems);
+    },
+    [persistItemOrder, report]
+  );
 
   const handleResultChange = useCallback((id: number, value: string) => {
     setResults((prev) => ({ ...prev, [id]: value }));
@@ -333,46 +471,17 @@ export default function EnterResultsPage() {
 
         {alert && <Alert severity={alert.type} sx={{ mb: 2, borderRadius: 2 }} onClose={() => setAlert(null)}>{alert.msg}</Alert>}
 
-        {/* Grouped results by panel */}
         {grouped.map((group, gIdx) => (
-          <Card key={gIdx} sx={{ mb: 2, borderRadius: 2 }}>
-            {group.panelName && (
-              <CardContent sx={{ pb: 0, bgcolor: "#f0f7ff", borderBottom: "1px solid #e2e8f0" }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#0f4c81" }}>
-                  {group.panelName}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {group.items.length} parameters
-                </Typography>
-              </CardContent>
-            )}
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ "& th": { fontWeight: 600, fontSize: 12, color: "text.secondary", bgcolor: "#f8fafc" } }}>
-                    <TableCell>Test Parameter</TableCell>
-                    <TableCell>Reference Range</TableCell>
-                    <TableCell>Result</TableCell>
-                    <TableCell align="center">Status</TableCell>
-                    <TableCell align="center" width={48} />
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {group.items.map((item) => (
-                    <ResultInputRow
-                      key={item.id}
-                      item={item}
-                      value={results[item.id] || ""}
-                      onChange={handleResultChange}
-                      onKeyDown={handleKeyDown}
-                      onRemove={removeParameter}
-                      inputRef={setInputRef}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Card>
+          <ResultGroupCard
+            key={group.panelName || group.items[0]?.id || gIdx}
+            group={group}
+            results={results}
+            onChange={handleResultChange}
+            onKeyDown={handleKeyDown}
+            onRemove={removeParameter}
+            onReorder={reorderGroup}
+            inputRef={setInputRef}
+          />
         ))}
 
         {/* Action buttons — not sticky so they never cover result inputs */}
