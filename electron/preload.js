@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld("mylab", {
   confirm: (message) =>
     ipcRenderer.sendSync("dialog:confirm", String(message ?? "")),
   restoreInputFocus: () => ipcRenderer.send("dialog:restore-focus"),
-  /** Opens a PDF print preview window (system dialog has no preview in Electron). */
+  /** Renders report to PDF and opens it in the system viewer (Edge/Adobe). */
   print: () => ipcRenderer.invoke("print:page"),
   drive: {
     getStatus: () => ipcRenderer.invoke("drive:getStatus"),

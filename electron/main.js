@@ -1,9 +1,8 @@
-const { app, BrowserWindow, shell, dialog, ipcMain, Menu } = require("electron");
+const { app, BrowserWindow, shell, dialog, ipcMain } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
 const { spawn } = require("child_process");
-const { pathToFileURL } = require("url");
 const {
   setupAutoUpdater,
   checkForUpdatesManual,
@@ -136,7 +135,48 @@ async function restartApiAfterRestore() {
   await waitForUrl(`http://127.0.0.1:${API_PORT}/health`);
 }
 
-function startServers(extraEnv = {}) {
+/**
+ * After NSIS quitAndInstall, Electron can relaunch before extraResources
+ * (api / app-server) finish copying. Wait briefly instead of failing hard.
+ */
+function waitForPackagedEntries(timeoutMs = 90000) {
+  const resources = process.resourcesPath;
+  const apiEntry = path.join(resources, "api", "index.js");
+  const nextEntry = path.join(resources, "app-server", "server.js");
+  const started = Date.now();
+
+  return new Promise((resolve, reject) => {
+    const tick = () => {
+      const apiOk = fs.existsSync(apiEntry);
+      const nextOk = fs.existsSync(nextEntry);
+      if (apiOk && nextOk) {
+        resolve({ apiEntry, nextEntry, resources });
+        return;
+      }
+      if (Date.now() - started > timeoutMs) {
+        const missing = [
+          !apiOk ? apiEntry : null,
+          !nextOk ? nextEntry : null,
+        ].filter(Boolean);
+        reject(
+          new Error(
+            `App files missing after update (installer may still be copying):\n${missing.join("\n")}`
+          )
+        );
+        return;
+      }
+      if ((Date.now() - started) % 5000 < 600) {
+        log(
+          `Waiting for packaged files… api=${apiOk} app-server=${nextOk}`
+        );
+      }
+      setTimeout(tick, 400);
+    };
+    tick();
+  });
+}
+
+async function startServers(extraEnv = {}) {
   const { db, uploads } = userPaths();
   fs.mkdirSync(uploads, { recursive: true });
   fs.mkdirSync(path.dirname(db), { recursive: true });
@@ -154,24 +194,14 @@ function startServers(extraEnv = {}) {
   if (isDev) {
     const apiPort = process.env.MYLAB_DEV_API_PORT || "4000";
     const appPort = process.env.MYLAB_DEV_APP_PORT || "3000";
-    return Promise.all([
+    await Promise.all([
       waitForUrl(`http://localhost:${apiPort}/health`),
       waitForUrl(`http://localhost:${appPort}`),
-    ]).then(() => ({
-      appUrl: `http://localhost:${appPort}`,
-    }));
+    ]);
+    return { appUrl: `http://localhost:${appPort}` };
   }
 
-  const resources = process.resourcesPath;
-  const apiEntry = path.join(resources, "api", "index.js");
-  const nextEntry = path.join(resources, "app-server", "server.js");
-
-  if (!fs.existsSync(apiEntry)) {
-    throw new Error(`API entry missing: ${apiEntry}`);
-  }
-  if (!fs.existsSync(nextEntry)) {
-    throw new Error(`App server entry missing: ${nextEntry}`);
-  }
+  const { apiEntry, nextEntry, resources } = await waitForPackagedEntries();
 
   log(`Starting API from ${apiEntry}`);
   startApiOnly();
@@ -188,12 +218,11 @@ function startServers(extraEnv = {}) {
     path.join(resources, "app-server")
   );
 
-  return Promise.all([
+  await Promise.all([
     waitForUrl(`http://127.0.0.1:${API_PORT}/health`),
     waitForUrl(`http://127.0.0.1:${APP_PORT}`),
-  ]).then(() => ({
-    appUrl: `http://127.0.0.1:${APP_PORT}`,
-  }));
+  ]);
+  return { appUrl: `http://127.0.0.1:${APP_PORT}` };
 }
 
 /** Electron bug: after native alert/confirm, inputs stop accepting keystrokes until blur+focus. */
@@ -290,88 +319,54 @@ function registerDialogIpc() {
     restoreWindowFocus(BrowserWindow.fromWebContents(event.sender));
   });
 
-  // Windows system print dialog shows "doesn't support print preview" for Electron.
-  // Fix: render report to PDF (uses @media print CSS), open a preview window,
-  // then print from there / open in the system PDF viewer.
+  // Windows: Electron's print dialog often has no preview / fails USB printers.
+  // Render @media print CSS → PDF, then open in the system PDF viewer (Edge/Adobe).
   ipcMain.handle("print:page", async (event) => {
     const wc = event.sender;
     const parent = BrowserWindow.fromWebContents(wc);
+    log("print:page invoked");
     try {
       if (parent && !parent.isDestroyed()) {
         if (parent.isMinimized()) parent.restore();
         parent.focus();
       }
 
-      const pdfBuffer = await wc.printToPDF({
-        printBackground: true,
-        pageSize: "A4",
-        // Let @page CSS control margins so content isn't scaled down twice
-        preferCSSPageSize: true,
-        margins: { marginType: "none" },
-      });
+      const pdfBuffer = await Promise.race([
+        wc.printToPDF({
+          printBackground: true,
+          pageSize: "A4",
+          preferCSSPageSize: true,
+          margins: { marginType: "none" },
+        }),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("printToPDF timed out after 45s")),
+            45000
+          )
+        ),
+      ]);
 
       const filePath = path.join(
         app.getPath("temp"),
         `mylab-report-${Date.now()}.pdf`
       );
       fs.writeFileSync(filePath, pdfBuffer);
+      log(`print:page wrote PDF (${pdfBuffer.length} bytes) → ${filePath}`);
 
-      const previewWin = new BrowserWindow({
-        width: 920,
-        height: 1080,
-        minWidth: 640,
-        minHeight: 720,
-        title: "MyLab — Print preview",
-        backgroundColor: "#525659",
-        autoHideMenuBar: false,
-        parent: parent || undefined,
-        show: false,
-      });
+      // Primary path: system viewer. Do NOT wait on BrowserWindow ready-to-show —
+      // Chromium's PDF viewer often never fires it when show:false, so Print
+      // appeared to do nothing.
+      const openErr = await shell.openPath(filePath);
+      if (openErr) {
+        log(`print:page openPath failed: ${openErr}`);
+        throw new Error(openErr);
+      }
 
-      // Electron's own Print on a PDF often fails with USB printers and shows
-      // "doesn't support print preview". Opening in the system PDF viewer
-      // (Edge / Adobe) is the reliable way to print to Epson/HP USB printers.
-      const openSystemViewer = () => {
-        shell.openPath(filePath).catch((e) => log("openPath failed", e));
-      };
-
-      const printViaElectron = () => {
-        if (previewWin.isDestroyed()) return;
-        previewWin.webContents.print({}, () => {});
-      };
-
-      previewWin.setMenu(
-        Menu.buildFromTemplate([
-          {
-            label: "File",
-            submenu: [
-              {
-                label: "Print via Windows viewer…",
-                accelerator: "CmdOrCtrl+P",
-                click: openSystemViewer,
-              },
-              {
-                label: "Print via Electron (may fail)",
-                click: printViaElectron,
-              },
-              { type: "separator" },
-              { label: "Close", role: "close" },
-            ],
-          },
-        ])
-      );
-
-      await previewWin.loadURL(pathToFileURL(filePath).href);
-      previewWin.once("ready-to-show", () => {
-        previewWin.show();
-        // Auto-open system viewer so Print works with USB printers
-        openSystemViewer();
-      });
-
-      return { ok: true, mode: "pdf-preview", path: filePath };
+      log("print:page opened system PDF viewer");
+      return { ok: true, mode: "system-viewer", path: filePath };
     } catch (err) {
-      log("print:page PDF preview failed", err);
-      // Last resort: system print dialog (no preview on Windows)
+      log("print:page PDF path failed", err);
+      // Last resort: Electron print dialog (no preview on Windows)
       return new Promise((resolve) => {
         try {
           wc.print({}, (success, failureReason) => {
@@ -572,7 +567,6 @@ app.whenReady().then(async () => {
     log("MyLab starting (packaged=" + app.isPackaged + ")");
     registerDialogIpc();
     initDrive();
-    initAnalyzers();
 
     // If local DB is empty and Drive may have a backup, defer factory seed
     // until the user restores or skips — otherwise seed would block restore.
@@ -583,9 +577,12 @@ app.whenReady().then(async () => {
       typeof drive.localIsEmpty === "function" &&
       drive.localIsEmpty();
 
+    // Wait for packaged api/app-server before analyzers — post-NSIS relaunch
+    // can start while files are still being copied.
     const { appUrl } = await startServers({
       MYLAB_DEFER_CATALOGUE_SEED: deferCatalogueSeed ? "1" : "0",
     });
+    initAnalyzers();
     log(
       `Services ready, opening ${appUrl}` +
         (deferCatalogueSeed ? " (catalogue seed deferred for Drive)" : "")

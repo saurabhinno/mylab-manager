@@ -13,6 +13,7 @@ import {
   FormControl,
   FormControlLabel,
   Grid,
+  IconButton,
   InputAdornment,
   InputLabel,
   MenuItem,
@@ -26,12 +27,14 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
   ArrowBackOutlined,
   ArrowForwardOutlined,
   CheckCircleOutlined,
+  CloseOutlined,
   HistoryOutlined,
   SaveOutlined,
   ScienceOutlined,
@@ -308,6 +311,51 @@ export default function ReportCreateWizard({
     }
   }
 
+  async function removeParameter(item: ReportItem) {
+    if (!report) return;
+    const total = (report.reportItems || []).length;
+    if (total <= 1) {
+      setAlert({
+        type: "error",
+        msg: "Cannot remove the last parameter. Delete the report instead.",
+      });
+      return;
+    }
+    if (!confirm(`Remove "${item.test_name}" from this report?`)) return;
+
+    setSaving(true);
+    setAlert(null);
+    try {
+      const res = await apiRequest(`/api/reports/${report.id}/items/${item.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setAlert({ type: "error", msg: d.error || "Failed to remove parameter" });
+        setSaving(false);
+        return;
+      }
+
+      const nextItems = (report.reportItems || []).filter((i) => i.id !== item.id);
+      setReport({ ...report, reportItems: nextItems });
+      setResults((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+
+      const pages = groupItemsIntoPages(nextItems);
+      if (resultPageIdx >= pages.length) {
+        setResultPageIdx(Math.max(0, pages.length - 1));
+      }
+      setAlert({ type: "success", msg: `Removed ${item.test_name}` });
+    } catch (e: any) {
+      setAlert({ type: "error", msg: e?.message || "Remove failed" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <Box sx={{ display: "flex", minHeight: "100vh" }}>
@@ -555,7 +603,7 @@ export default function ReportCreateWizard({
                   {patientName}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  One page per test/panel · Save draft anytime
+                  One page per test/panel · Remove any parameter · Save draft anytime
                 </Typography>
               </Box>
             </Stack>
@@ -606,6 +654,7 @@ export default function ReportCreateWizard({
                         <TableCell>Parameter</TableCell>
                         <TableCell>Reference</TableCell>
                         <TableCell>Result</TableCell>
+                        <TableCell align="right" width={56} />
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -661,6 +710,21 @@ export default function ReportCreateWizard({
                                   />
                                 )}
                               </Stack>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Tooltip title="Remove parameter">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    color="error"
+                                    disabled={saving || (report.reportItems || []).length <= 1}
+                                    onClick={() => void removeParameter(item)}
+                                    aria-label={`Remove ${item.test_name}`}
+                                  >
+                                    <CloseOutlined fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
                             </TableCell>
                           </TableRow>
                         );
