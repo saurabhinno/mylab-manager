@@ -36,8 +36,16 @@ jobs:
           node-version: "20"
           cache: npm
 
+      # serialport (@serialport/bindings-cpp) must compile for Electron ABI
+      - name: Setup MSVC build tools
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Install root dependencies
         run: npm ci
+        env:
+          npm_config_msvs_version: "2022"
 
       - name: Install API dependencies
         working-directory: express-api
@@ -48,6 +56,7 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          npm_config_msvs_version: "2022"
           # Prefer repo/environment secret; fall back to environment variable
           MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN || vars.MYLAB_GH_UPDATE_TOKEN }}
           MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL || vars.MYLAB_UPDATE_FEED_URL }}
@@ -61,6 +70,7 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          npm_config_msvs_version: "2022"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN || vars.MYLAB_GH_UPDATE_TOKEN }}
           MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL || vars.MYLAB_UPDATE_FEED_URL }}
@@ -93,6 +103,12 @@ jobs:
         with:
           node-version: "20"
           cache: npm
+
+      # node-gyp needs distutils (removed from stdlib in Python 3.12+)
+      - name: Setup Python for native modules
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
       - name: Install root dependencies
         run: npm ci

@@ -21,6 +21,8 @@ let mainWindow = null;
 let apiChild = null;
 let nextChild = null;
 let shuttingDown = false;
+/** Skip close confirmation (user confirmed, or update install). */
+let quitConfirmed = false;
 let logStream = null;
 let drive = null;
 let analyzers = null;
@@ -231,6 +233,26 @@ function createWindow(appUrl) {
     return { action: "deny" };
   });
 
+  mainWindow.on("close", (event) => {
+    if (quitConfirmed || shuttingDown) return;
+    event.preventDefault();
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: "question",
+      title: "MyLab",
+      message: "Are you sure you want to close the application?",
+      buttons: ["Cancel", "Close"],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    });
+    if (choice === 1) {
+      quitConfirmed = true;
+      mainWindow.close();
+    } else {
+      restoreWindowFocus(mainWindow);
+    }
+  });
+
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
@@ -420,6 +442,7 @@ function initDrive() {
   ipcMain.handle("updates:download", async () => downloadUpdate());
   ipcMain.handle("updates:install", async () => {
     // Stop API/Next children so quitAndInstall can actually exit on macOS.
+    quitConfirmed = true;
     if (drive) drive.stopSchedule();
     stopChildren();
     return installUpdate();
@@ -583,6 +606,7 @@ app.whenReady().then(async () => {
     restoreWindowFocus(mainWindow);
     setupAutoUpdater(log, {
       beforeInstall: () => {
+        quitConfirmed = true;
         if (drive) drive.stopSchedule();
         stopChildren();
       },
