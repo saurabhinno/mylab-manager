@@ -5,6 +5,7 @@ import { TestDefinition } from "@/models/TestDefinition";
 import { Report, associateReport } from "@/models/Report";
 import { ReportItem } from "@/models/ReportItem";
 import { LabSettings } from "@/models/LabSettings";
+import { AnalyzerInbox } from "@/models/AnalyzerInbox";
 import { hashPassword } from "@/lib/session";
 
 type SeedParam = {
@@ -380,6 +381,7 @@ export const initDatabase = async () => {
   await Report.sync(syncOpts);
   await ReportItem.sync(syncOpts);
   await LabSettings.sync(syncOpts);
+  await AnalyzerInbox.sync(syncOpts);
   await ensureLabSettingsCatalogueColumns();
 
   // Seed default doctor if not exists
@@ -430,4 +432,13 @@ export const initDatabase = async () => {
   }
 };
 
-export { sequelize, User, Patient, TestDefinition, Report, ReportItem, LabSettings };
+export {
+  sequelize,
+  User,
+  Patient,
+  TestDefinition,
+  Report,
+  ReportItem,
+  LabSettings,
+  AnalyzerInbox,
+};

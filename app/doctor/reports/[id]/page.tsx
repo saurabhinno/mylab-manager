@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   Box, Typography, Button, CircularProgress, Divider, Table,
-  TableBody, TableCell, TableHead, TableRow, TableContainer, Chip,
+  TableBody, TableCell, TableHead, TableRow, TableContainer,
 } from "@mui/material";
 import { PrintOutlined, ArrowBackOutlined, PaymentOutlined, DeleteOutlined } from "@mui/icons-material";
 import Link from "next/link";
@@ -222,31 +222,31 @@ export default function DoctorReportViewPage() {
                     <TableRow sx={{ "& th": { fontWeight: 700, fontSize: 11, color: "#fff", bgcolor: "#0f4c81", py: 1 } }}>
                       <TableCell>Test Parameter</TableCell>
                       <TableCell align="center">Result</TableCell>
-                      <TableCell align="center">Unit</TableCell>
                       <TableCell align="center">Reference Range</TableCell>
-                      <TableCell align="center">Remark</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {page.items.map((item, idx) => {
                       const st = getStatus(item);
                       const abnormal = st === "high" || st === "low";
+                      const range =
+                        item.normal_min != null && item.normal_max != null
+                          ? `${item.normal_min} – ${item.normal_max}`
+                          : "";
+                      const rangeWithUnit = [range, item.unit].filter(Boolean).join(" ") || "—";
                       return (
                         <TableRow key={item.id} sx={{
                           bgcolor: abnormal ? "#fef2f2" : idx % 2 === 0 ? "#fff" : "#f8fafc",
                           "& td": { fontSize: 12, py: 1.2, borderBottom: "1px solid #e2e8f0" },
                         }}>
                           <TableCell sx={{ fontWeight: 500 }}>{item.test_name}</TableCell>
-                          <TableCell align="center" sx={{ fontWeight: 700, color: abnormal ? "#dc2626" : "#1a2332", fontSize: 13 }}>{item.result_value || "—"}</TableCell>
-                          <TableCell align="center" sx={{ color: "text.secondary" }}>{item.unit || "—"}</TableCell>
-                          <TableCell align="center" sx={{ color: "text.secondary" }}>
-                            {item.normal_min != null && item.normal_max != null ? `${item.normal_min} – ${item.normal_max}` : "—"}
+                          <TableCell align="center" sx={{ fontWeight: 700, color: abnormal ? "#dc2626" : "#1a2332", fontSize: 13 }}>
+                            {item.result_value || "—"}
+                            {abnormal && st === "high" ? " ↑" : ""}
+                            {abnormal && st === "low" ? " ↓" : ""}
                           </TableCell>
-                          <TableCell align="center">
-                            {st === "normal" && <Chip label="Normal" size="small" color="success" sx={{ fontSize: 9, height: 18 }} />}
-                            {st === "high" && <Chip label="HIGH" size="small" color="error" sx={{ fontSize: 9, height: 18, fontWeight: 700 }} />}
-                            {st === "low" && <Chip label="LOW" size="small" color="warning" sx={{ fontSize: 9, height: 18, fontWeight: 700 }} />}
-                            {st === "unknown" && <Typography variant="caption" color="text.disabled">—</Typography>}
+                          <TableCell align="center" sx={{ color: "text.secondary", whiteSpace: "nowrap" }}>
+                            {rangeWithUnit}
                           </TableCell>
                         </TableRow>
                       );

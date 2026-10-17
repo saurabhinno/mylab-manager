@@ -13,7 +13,7 @@ import {
   PeopleOutlined, LogoutOutlined, LocalHospitalOutlined, PersonOutlined,
   SettingsOutlined, MenuOutlined, CloseOutlined, ChevronLeftOutlined, ChevronRightOutlined,
   BiotechOutlined, SwapHorizOutlined, CloudOutlined, SystemUpdateAltOutlined,
-  LockOutlined,
+  LockOutlined, CableOutlined,
 } from '@mui/icons-material';
 import { apiRequest } from '@/lib/api';
 import LangSwitcher from '@/components/LangSwitcher';
@@ -38,7 +38,7 @@ export default function Sidebar({ role: roleProp, email: emailProp }: SidebarPro
   const [pwOpen, setPwOpen] = useState(false);
   const { t } = useI18n();
   const { user } = useUser();
-  const isDesktop = typeof window !== 'undefined' && !!(window as any).mylab?.updates;
+  const isDesktop = typeof window !== 'undefined' && !!(window as any).mylab?.isDesktop;
 
   // Prefer live session role so compounders never get the doctor nav by mistake
   const role = user?.role || roleProp || 'compounder';
@@ -86,6 +86,9 @@ export default function Sidebar({ role: roleProp, email: emailProp }: SidebarPro
     { label: t('nav.dashboard'), href: '/doctor/dashboard', icon: <DashboardOutlined /> },
     { label: t('nav.tests'), href: '/doctor/tests', icon: <ScienceOutlined /> },
     { label: t('nav.reports'), href: '/doctor/reports', icon: <ArticleOutlined /> },
+    ...(isDesktop
+      ? [{ label: t('nav.analyzers'), href: '/doctor/analyzers', icon: <CableOutlined /> }]
+      : []),
     { label: t('nav.staff'), href: '/doctor/staff', icon: <PeopleOutlined /> },
     { label: t('nav.settings'), href: '/doctor/settings', icon: <SettingsOutlined /> },
     { label: t('nav.cloud'), href: '/doctor/cloud', icon: <CloudOutlined /> },
@@ -95,6 +98,9 @@ export default function Sidebar({ role: roleProp, email: emailProp }: SidebarPro
 
   const compounderNav: NavItem[] = [
     { label: t('nav.compounder_reports'), href: '/compounder/reports', icon: <BiotechOutlined /> },
+    ...(isDesktop
+      ? [{ label: t('nav.analyzers'), href: '/compounder/analyzers', icon: <CableOutlined /> }]
+      : []),
   ];
 
   const nav = isDoctor && viewAs === 'doctor' ? doctorNav : compounderNav;

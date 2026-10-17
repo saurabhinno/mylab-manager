@@ -9,6 +9,7 @@ import reportsRoutes from "@/routes/reports";
 import testsRoutes from "@/routes/tests";
 import testRoutes from "@/routes/test";
 import settingsRoutes from "@/routes/settings";
+import analyzersRoutes from "@/routes/analyzers";
 import { initDatabase } from "@/models";
 
 const app = express();
@@ -48,6 +49,7 @@ app.use("/api/reports", reportsRoutes);
 app.use("/api/tests", testsRoutes);
 app.use("/api/test", testRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/analyzers", analyzersRoutes);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });

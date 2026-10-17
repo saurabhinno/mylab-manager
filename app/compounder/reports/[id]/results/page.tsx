@@ -59,11 +59,15 @@ const ResultInputRow = React.memo(function ResultInputRow({
   return (
     <TableRow sx={{ bgcolor: isAbnormal ? "#fef2f2" : "transparent" }}>
       <TableCell sx={{ fontWeight: 500, fontSize: 13 }}>{item.test_name}</TableCell>
-      <TableCell sx={{ fontSize: 12 }}>{item.unit || "—"}</TableCell>
-      <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>
-        {item.normal_min != null && item.normal_max != null
-          ? `${item.normal_min} – ${item.normal_max}`
-          : "—"}
+      <TableCell sx={{ fontSize: 12, color: "text.secondary", whiteSpace: "nowrap" }}>
+        {[
+          item.normal_min != null && item.normal_max != null
+            ? `${item.normal_min} – ${item.normal_max}`
+            : "",
+          item.unit || "",
+        ]
+          .filter(Boolean)
+          .join(" ") || "—"}
       </TableCell>
       <TableCell>
         <TextField
@@ -345,8 +349,7 @@ export default function EnterResultsPage() {
                 <TableHead>
                   <TableRow sx={{ "& th": { fontWeight: 600, fontSize: 12, color: "text.secondary", bgcolor: "#f8fafc" } }}>
                     <TableCell>Test Parameter</TableCell>
-                    <TableCell>Unit</TableCell>
-                    <TableCell>Normal Range</TableCell>
+                    <TableCell>Reference Range</TableCell>
                     <TableCell>Result</TableCell>
                     <TableCell align="center">Status</TableCell>
                     <TableCell align="center" width={48} />

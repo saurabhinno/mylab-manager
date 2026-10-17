@@ -11,6 +11,7 @@ const {
   getStatus: getUpdateStatus,
 } = require("./updater");
 const { createDriveBackup } = require("./drive-backup");
+const { createAnalyzerService } = require("./analyzers");
 
 const API_PORT = process.env.MYLAB_API_PORT || "47821";
 const APP_PORT = process.env.MYLAB_APP_PORT || "47822";
@@ -21,6 +22,7 @@ let nextChild = null;
 let shuttingDown = false;
 let logStream = null;
 let drive = null;
+let analyzers = null;
 let sharedEnv = null;
 
 const isDev = !app.isPackaged;
@@ -328,6 +330,50 @@ function initDrive() {
   ipcMain.handle("updates:getVersion", async () => app.getVersion());
 }
 
+function initAnalyzers() {
+  analyzers = createAnalyzerService({
+    log,
+    getMainWindow: () => mainWindow,
+  });
+
+  ipcMain.handle("analyzers:listPorts", async () => analyzers.listPorts());
+  ipcMain.handle("analyzers:getStatus", async () => analyzers.getStatus());
+  ipcMain.handle("analyzers:getRaw", async () => ({
+    raw: analyzers.getRawBuffer(),
+  }));
+  ipcMain.handle("analyzers:clearRaw", async () => {
+    analyzers.clearRawBuffer();
+    return { ok: true };
+  });
+  ipcMain.handle("analyzers:open", async (_e, path, options) => {
+    try {
+      return await analyzers.openAndListen(path, options || {});
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+  });
+  ipcMain.handle("analyzers:close", async () => {
+    await analyzers.closeActive();
+    return { ok: true };
+  });
+  ipcMain.handle("analyzers:startLan", async (_e, port) => {
+    try {
+      return await analyzers.startLan(port);
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+  });
+  ipcMain.handle("analyzers:stopLan", async () => {
+    try {
+      return await analyzers.stopLan();
+    } catch (err) {
+      return { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+  });
+
+  analyzers.startPolling();
+}
+
 /**
  * Prefer Drive restore over factory seed on empty machines.
  * Returns whether catalogue seed was deferred and must be finalized after.
@@ -371,6 +417,7 @@ app.whenReady().then(async () => {
     log("MyLab starting (packaged=" + app.isPackaged + ")");
     registerDialogIpc();
     initDrive();
+    initAnalyzers();
 
     // If local DB is empty and Drive may have a backup, defer factory seed
     // until the user restores or skips — otherwise seed would block restore.
@@ -426,11 +473,21 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (drive) drive.stopSchedule();
+  if (analyzers) {
+    analyzers.stopPolling();
+    analyzers.closeActive();
+    analyzers.stopLan();
+  }
   stopChildren();
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("before-quit", () => {
   if (drive) drive.stopSchedule();
+  if (analyzers) {
+    analyzers.stopPolling();
+    analyzers.closeActive();
+    analyzers.stopLan();
+  }
   stopChildren();
 });

@@ -40,6 +40,7 @@ const translations: Record<string, Record<Lang, string>> = {
   "nav.settings": { en: "Report Settings", hi: "रिपोर्ट सेटिंग्स", hinglish: "Report Settings" },
   "nav.cloud": { en: "Cloud Backup", hi: "क्लाउड बैकअप", hinglish: "Cloud Backup" },
   "nav.updates": { en: "Updates", hi: "अपडेट", hinglish: "Updates" },
+  "nav.analyzers": { en: "Analyzers", hi: "मशीनें", hinglish: "Machines" },
   "nav.profile": { en: "Profile", hi: "प्रोफाइल", hinglish: "Profile" },
 
   // Dashboard
