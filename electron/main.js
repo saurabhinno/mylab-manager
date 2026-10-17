@@ -403,20 +403,22 @@ function registerDialogIpc() {
   });
 }
 
-/** Send a PDF to the Windows print spooler (no Electron print dialog). */
+/**
+ * Send a PDF to the Windows print spooler (no Electron print dialog).
+ * Use -FilePath (Windows PowerShell 5.1 has no Start-Process -LiteralPath).
+ */
 function printPdfWithWindows(filePath, printerName) {
   return new Promise((resolve, reject) => {
     const pdf = String(filePath).replace(/'/g, "''");
     let command;
     if (printerName) {
       const printer = String(printerName).replace(/'/g, "''");
-      // PrintTo = specific printer; falls back to Print if verb missing
       command =
         `$p='${pdf}'; $pr='${printer}'; ` +
-        `try { Start-Process -LiteralPath $p -Verb PrintTo -ArgumentList $pr -ErrorAction Stop } ` +
-        `catch { Start-Process -LiteralPath $p -Verb Print }`;
+        `try { Start-Process -FilePath $p -Verb PrintTo -ArgumentList $pr -ErrorAction Stop } ` +
+        `catch { Start-Process -FilePath $p -Verb Print }`;
     } else {
-      command = `Start-Process -LiteralPath '${pdf}' -Verb Print`;
+      command = `Start-Process -FilePath '${pdf}' -Verb Print`;
     }
 
     const child = spawn(
