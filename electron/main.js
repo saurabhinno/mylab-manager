@@ -305,8 +305,9 @@ function registerDialogIpc() {
       const pdfBuffer = await wc.printToPDF({
         printBackground: true,
         pageSize: "A4",
+        // Let @page CSS control margins so content isn't scaled down twice
         preferCSSPageSize: true,
-        margins: { marginType: "default" },
+        margins: { marginType: "none" },
       });
 
       const filePath = path.join(

@@ -76,7 +76,11 @@ a.MuiButton-textPrimary:hover {
 }
 
 @media print {
-  @page { margin: 12mm; size: A4 portrait; }
+  /* Full A4 — do not scale the report down */
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
 
   html, body {
     background: #fff !important;
@@ -86,6 +90,7 @@ a.MuiButton-textPrimary:hover {
     margin: 0 !important;
     height: auto !important;
     overflow: visible !important;
+    font-size: 12px !important;
   }
 
   /* Hide chrome that blanks Electron print preview */
@@ -102,23 +107,30 @@ a.MuiButton-textPrimary:hover {
   #__next,
   main {
     display: block !important;
+    width: 100% !important;
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
     position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
-  /* One physical page per panel — keep CBC (many rows) on a single sheet */
+  /*
+   * One A4 sheet per panel/test.
+   * Fill the printable area; header + signature footer stay normal size.
+   * Only the results table may tighten for long panels (CBC).
+   */
   .report-page {
     width: 100% !important;
-    min-height: 0 !important;
-    max-height: 100vh !important;
+    min-height: 277mm !important; /* A4 297mm − ~20mm margins */
+    max-height: none !important;
     height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
     border-radius: 0 !important;
-    overflow: hidden !important;
+    overflow: visible !important;
     page-break-after: always !important;
     break-after: page !important;
     page-break-inside: avoid !important;
@@ -132,21 +144,62 @@ a.MuiButton-textPrimary:hover {
     break-after: auto !important;
   }
 
+  .report-header {
+    flex-shrink: 0 !important;
+    padding: 8px 0 10px !important;
+  }
+
+  .report-header .report-lab-name {
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    line-height: 1.25 !important;
+  }
+
+  .report-header .report-lab-meta {
+    font-size: 10px !important;
+  }
+
+  .report-header .report-logo {
+    height: 52px !important;
+  }
+
+  .report-body {
+    flex: 1 1 auto !important;
+  }
+
+  .report-footer {
+    flex-shrink: 0 !important;
+    margin-top: auto !important;
+    padding-top: 12px !important;
+    padding-bottom: 4px !important;
+    min-height: 32mm !important; /* room for doctor signature */
+  }
+
+  .report-footer .report-sign-block {
+    min-width: 180px !important;
+    text-align: center !important;
+  }
+
+  .report-footer .report-sign-image {
+    height: 48px !important;
+    object-fit: contain !important;
+  }
+
+  .report-footer .report-sign-name {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  .report-footer .report-sign-role {
+    font-size: 9px !important;
+  }
+
+  /* Dense table only — never shrink header/footer */
   .report-page--compact .report-results-table td,
   .report-page--compact .report-results-table th {
-    padding-top: 2px !important;
-    padding-bottom: 2px !important;
-    font-size: 9.5px !important;
-    line-height: 1.2 !important;
-  }
-
-  .report-page--compact .report-header {
-    padding-top: 6px !important;
-    padding-bottom: 4px !important;
-  }
-
-  .report-page--compact .report-footer {
-    padding-top: 4px !important;
-    padding-bottom: 6px !important;
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
+    font-size: 11px !important;
+    line-height: 1.25 !important;
   }
 }

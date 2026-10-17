@@ -24,7 +24,8 @@ permissions:
 jobs:
   build-windows:
     name: Windows
-    runs-on: windows-latest
+    # Pin 2022 image — has VS Enterprise + VC tools for serialport rebuild
+    runs-on: windows-2022
     environment: "mylab / production"
     steps:
       - name: Checkout
@@ -36,16 +37,11 @@ jobs:
           node-version: "20"
           cache: npm
 
-      # serialport (@serialport/bindings-cpp) must compile for Electron ABI
-      - name: Setup MSVC build tools
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
-
       - name: Install root dependencies
         run: npm ci
         env:
-          npm_config_msvs_version: "2022"
+          # Skip native rebuild during install; electron-builder runs it with MSVC
+          npm_config_ignore_scripts: "false"
 
       - name: Install API dependencies
         working-directory: express-api
@@ -53,23 +49,27 @@ jobs:
 
       - name: Build Windows installer
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        shell: pwsh
         env:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GYP_MSVS_VERSION: "2022"
           npm_config_msvs_version: "2022"
-          # Prefer repo/environment secret; fall back to environment variable
           MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN || vars.MYLAB_GH_UPDATE_TOKEN }}
           MYLAB_UPDATE_FEED_URL: ${{ secrets.MYLAB_UPDATE_FEED_URL || vars.MYLAB_UPDATE_FEED_URL }}
           GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID || vars.GOOGLE_DRIVE_CLIENT_ID }}
           GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET || vars.GOOGLE_DRIVE_CLIENT_SECRET }}
           GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN || vars.GOOGLE_DRIVE_REFRESH_TOKEN }}
-        run: npm run desktop:build:win
+        run: |
+          ./scripts/with-msvc.ps1 npm run desktop:build:win
 
       - name: Publish Windows installer to GitHub Release
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        shell: pwsh
         env:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:47821
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GYP_MSVS_VERSION: "2022"
           npm_config_msvs_version: "2022"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MYLAB_GH_UPDATE_TOKEN: ${{ secrets.MYLAB_GH_UPDATE_TOKEN || vars.MYLAB_GH_UPDATE_TOKEN }}
@@ -77,7 +77,8 @@ jobs:
           GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID || vars.GOOGLE_DRIVE_CLIENT_ID }}
           GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET || vars.GOOGLE_DRIVE_CLIENT_SECRET }}
           GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN || vars.GOOGLE_DRIVE_REFRESH_TOKEN }}
-        run: npm run desktop:publish:win
+        run: |
+          ./scripts/with-msvc.ps1 npm run desktop:publish:win
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
