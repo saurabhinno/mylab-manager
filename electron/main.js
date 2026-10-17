@@ -2,7 +2,10 @@ const { app, BrowserWindow, shell, dialog, ipcMain } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
+const { pathToFileURL } = require("url");
+const { promisify } = require("util");
+const execFileAsync = promisify(execFile);
 const {
   setupAutoUpdater,
   checkForUpdatesManual,
@@ -319,46 +322,122 @@ function registerDialogIpc() {
     restoreWindowFocus(BrowserWindow.fromWebContents(event.sender));
   });
 
-  // Open the OS print dialog directly (no PDF file / preview).
+  /**
+   * Electron's HTML→printer path fails on many USB printers (Epson shows
+   * "Sent to printer" / "Invalid printer settings" and never prints).
+   * Render a PDF, then hand it to Windows (Print/PrintTo) — no preview UI.
+   */
   ipcMain.handle("print:page", async (event) => {
     const wc = event.sender;
     const parent = BrowserWindow.fromWebContents(wc);
-    log("print:page → system print dialog");
+    log("print:page → PDF + Windows spooler");
     try {
       if (parent && !parent.isDestroyed()) {
         if (parent.isMinimized()) parent.restore();
         parent.focus();
       }
 
-      return await new Promise((resolve) => {
-        wc.print(
-          {
-            silent: false,
-            printBackground: true,
-            deviceName: "",
-          },
-          (success, failureReason) => {
-            if (success) {
-              log("print:page sent to printer");
-              resolve({ ok: true, mode: "print-dialog" });
-            } else {
-              log(`print:page dialog ended: ${failureReason || "cancelled"}`);
-              resolve({
-                ok: false,
-                error: failureReason || "Print cancelled",
-              });
-            }
-            restoreWindowFocus(parent);
-          }
-        );
-      });
+      let printers = [];
+      try {
+        printers =
+          typeof wc.getPrintersAsync === "function"
+            ? await wc.getPrintersAsync()
+            : wc.getPrinters();
+      } catch (e) {
+        log("getPrinters failed", e);
+      }
+      const printerName =
+        (printers.find((p) => p.isDefault) || {}).name ||
+        (printers.find((p) => /epson/i.test(String(p.name || ""))) || {})
+          .name ||
+        (printers[0] || {}).name ||
+        "";
+
+      const pdfBuffer = await Promise.race([
+        wc.printToPDF({
+          printBackground: true,
+          pageSize: "A4",
+          preferCSSPageSize: true,
+          margins: { marginType: "none" },
+        }),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("printToPDF timed out after 45s")),
+            45000
+          )
+        ),
+      ]);
+
+      const filePath = path.join(
+        app.getPath("temp"),
+        `mylab-report-${Date.now()}.pdf`
+      );
+      fs.writeFileSync(filePath, pdfBuffer);
+      log(
+        `print:page wrote PDF (${pdfBuffer.length} bytes); printer=${printerName || "default"}`
+      );
+
+      await printPdfWithWindows(filePath, printerName);
+      log("print:page Windows print job started");
+
+      setTimeout(() => {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (_) {}
+      }, 180000);
+
+      restoreWindowFocus(parent);
+      return {
+        ok: true,
+        mode: "windows-spooler",
+        printer: printerName || null,
+      };
     } catch (err) {
       log("print:page failed", err);
+      restoreWindowFocus(parent);
       return {
         ok: false,
         error: err && err.message ? err.message : String(err),
       };
     }
+  });
+}
+
+/** Send a PDF to the Windows print spooler (no Electron print dialog). */
+function printPdfWithWindows(filePath, printerName) {
+  return new Promise((resolve, reject) => {
+    const pdf = String(filePath).replace(/'/g, "''");
+    let command;
+    if (printerName) {
+      const printer = String(printerName).replace(/'/g, "''");
+      // PrintTo = specific printer; falls back to Print if verb missing
+      command =
+        `$p='${pdf}'; $pr='${printer}'; ` +
+        `try { Start-Process -LiteralPath $p -Verb PrintTo -ArgumentList $pr -ErrorAction Stop } ` +
+        `catch { Start-Process -LiteralPath $p -Verb Print }`;
+    } else {
+      command = `Start-Process -LiteralPath '${pdf}' -Verb Print`;
+    }
+
+    const child = spawn(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", command],
+      { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }
+    );
+    let stderr = "";
+    child.stderr.on("data", (buf) => {
+      stderr += buf.toString();
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0 || code === null) resolve();
+      else
+        reject(
+          new Error(
+            `Windows print failed (exit ${code})${stderr ? `: ${stderr.trim()}` : ""}`
+          )
+        );
+    });
   });
 }
 
