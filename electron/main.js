@@ -2,10 +2,7 @@ const { app, BrowserWindow, shell, dialog, ipcMain } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
-const { spawn, execFile } = require("child_process");
-const { pathToFileURL } = require("url");
-const { promisify } = require("util");
-const execFileAsync = promisify(execFile);
+const { spawn } = require("child_process");
 const {
   setupAutoUpdater,
   checkForUpdatesManual,
@@ -323,75 +320,42 @@ function registerDialogIpc() {
   });
 
   /**
-   * Electron's HTML→printer path fails on many USB printers (Epson shows
-   * "Sent to printer" / "Invalid printer settings" and never prints).
-   * Render a PDF, then hand it to Windows (Print/PrintTo) — no preview UI.
+   * One-click print: render the open report, open the normal Windows print
+   * dialog (via Edge — Electron's own print dialog fails on Epson USB).
    */
   ipcMain.handle("print:page", async (event) => {
     const wc = event.sender;
     const parent = BrowserWindow.fromWebContents(wc);
-    log("print:page → PDF + Windows spooler");
+    log("print:page");
     try {
       if (parent && !parent.isDestroyed()) {
         if (parent.isMinimized()) parent.restore();
         parent.focus();
       }
 
-      let printers = [];
-      try {
-        printers =
-          typeof wc.getPrintersAsync === "function"
-            ? await wc.getPrintersAsync()
-            : wc.getPrinters();
-      } catch (e) {
-        log("getPrinters failed", e);
-      }
-      const printerName =
-        (printers.find((p) => p.isDefault) || {}).name ||
-        (printers.find((p) => /epson/i.test(String(p.name || ""))) || {})
-          .name ||
-        (printers[0] || {}).name ||
-        "";
-
-      const pdfBuffer = await Promise.race([
-        wc.printToPDF({
-          printBackground: true,
-          pageSize: "A4",
-          preferCSSPageSize: true,
-          margins: { marginType: "none" },
-        }),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("printToPDF timed out after 45s")),
-            45000
-          )
-        ),
-      ]);
-
+      const pdfBuffer = await wc.printToPDF({
+        printBackground: true,
+        pageSize: "A4",
+        preferCSSPageSize: true,
+        margins: { marginType: "none" },
+      });
       const filePath = path.join(
         app.getPath("temp"),
         `mylab-report-${Date.now()}.pdf`
       );
       fs.writeFileSync(filePath, pdfBuffer);
-      log(
-        `print:page wrote PDF (${pdfBuffer.length} bytes); printer=${printerName || "default"}`
-      );
 
-      await printPdfWithWindows(filePath, printerName);
-      log("print:page Windows print job started");
+      await openReportForPrint(filePath);
+      await openWindowsPrintDialog();
 
       setTimeout(() => {
         try {
           fs.unlinkSync(filePath);
         } catch (_) {}
-      }, 180000);
+      }, 300000);
 
       restoreWindowFocus(parent);
-      return {
-        ok: true,
-        mode: "windows-spooler",
-        printer: printerName || null,
-      };
+      return { ok: true };
     } catch (err) {
       log("print:page failed", err);
       restoreWindowFocus(parent);
@@ -403,43 +367,78 @@ function registerDialogIpc() {
   });
 }
 
-/**
- * Send a PDF to the Windows print spooler (no Electron print dialog).
- * Use -FilePath (Windows PowerShell 5.1 has no Start-Process -LiteralPath).
- */
-function printPdfWithWindows(filePath, printerName) {
-  return new Promise((resolve, reject) => {
-    const pdf = String(filePath).replace(/'/g, "''");
-    let command;
-    if (printerName) {
-      const printer = String(printerName).replace(/'/g, "''");
-      command =
-        `$p='${pdf}'; $pr='${printer}'; ` +
-        `try { Start-Process -FilePath $p -Verb PrintTo -ArgumentList $pr -ErrorAction Stop } ` +
-        `catch { Start-Process -FilePath $p -Verb Print }`;
-    } else {
-      command = `Start-Process -FilePath '${pdf}' -Verb Print`;
-    }
+function findEdgePath() {
+  const candidates = [
+    path.join(
+      process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)",
+      "Microsoft",
+      "Edge",
+      "Application",
+      "msedge.exe"
+    ),
+    path.join(
+      process.env.PROGRAMFILES || "C:\\Program Files",
+      "Microsoft",
+      "Edge",
+      "Application",
+      "msedge.exe"
+    ),
+    path.join(
+      process.env.LOCALAPPDATA || "",
+      "Microsoft",
+      "Edge",
+      "Application",
+      "msedge.exe"
+    ),
+  ];
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  return null;
+}
 
+/** Open the report PDF in Edge (system PDF viewer). */
+function openReportForPrint(filePath) {
+  return new Promise((resolve, reject) => {
+    const edge = findEdgePath();
+    if (edge) {
+      const child = spawn(edge, [filePath], {
+        detached: true,
+        stdio: "ignore",
+      });
+      child.on("error", reject);
+      child.unref();
+      resolve();
+      return;
+    }
+    shell
+      .openPath(filePath)
+      .then((errMsg) => (errMsg ? reject(new Error(errMsg)) : resolve()))
+      .catch(reject);
+  });
+}
+
+/** Open the standard Windows print dialog (Ctrl+P in Edge). */
+function openWindowsPrintDialog() {
+  return new Promise((resolve) => {
+    const script = [
+      "Start-Sleep -Seconds 2",
+      "$w = New-Object -ComObject WScript.Shell",
+      "foreach ($t in @('Edge','msedge','PDF','mylab-report')) {",
+      "  if ($w.AppActivate($t)) { break }",
+      "}",
+      "Start-Sleep -Milliseconds 400",
+      "$w.SendKeys('^p')",
+    ].join("; ");
     const child = spawn(
       "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", command],
-      { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }
+      ["-NoProfile", "-WindowStyle", "Hidden", "-Command", script],
+      { windowsHide: true, stdio: "ignore" }
     );
-    let stderr = "";
-    child.stderr.on("data", (buf) => {
-      stderr += buf.toString();
-    });
-    child.on("error", reject);
-    child.on("exit", (code) => {
-      if (code === 0 || code === null) resolve();
-      else
-        reject(
-          new Error(
-            `Windows print failed (exit ${code})${stderr ? `: ${stderr.trim()}` : ""}`
-          )
-        );
-    });
+    const done = () => resolve();
+    child.on("exit", done);
+    child.on("error", done);
+    setTimeout(done, 6000);
   });
 }
 

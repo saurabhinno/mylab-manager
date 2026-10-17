@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld("mylab", {
   confirm: (message) =>
     ipcRenderer.sendSync("dialog:confirm", String(message ?? "")),
   restoreInputFocus: () => ipcRenderer.send("dialog:restore-focus"),
-  /** Prints the current page via Windows spooler (works with USB Epson). */
+  /** Opens the Windows print dialog for the current report. */
   print: () => ipcRenderer.invoke("print:page"),
   drive: {
     getStatus: () => ipcRenderer.invoke("drive:getStatus"),
