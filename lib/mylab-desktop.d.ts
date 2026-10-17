@@ -8,8 +8,8 @@ declare global {
       alert?: (message: string) => void;
       confirm?: (message: string) => boolean;
       restoreInputFocus?: () => void;
-      /** Open report PDF in the system viewer (Edge/Adobe); prefer over window.print() */
-      print?: () => Promise<{ ok?: boolean; error?: string | null; mode?: string; path?: string }>;
+      /** Open the system printer dialog; prefer over window.print() in Electron */
+      print?: () => Promise<{ ok?: boolean; error?: string | null; mode?: string }>;
       drive?: {
         getStatus: () => Promise<{
           mode?: string;

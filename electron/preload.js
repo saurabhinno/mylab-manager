@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld("mylab", {
   confirm: (message) =>
     ipcRenderer.sendSync("dialog:confirm", String(message ?? "")),
   restoreInputFocus: () => ipcRenderer.send("dialog:restore-focus"),
-  /** Renders report to PDF and opens it in the system viewer (Edge/Adobe). */
+  /** Opens the system printer dialog for the current page. */
   print: () => ipcRenderer.invoke("print:page"),
   drive: {
     getStatus: () => ipcRenderer.invoke("drive:getStatus"),

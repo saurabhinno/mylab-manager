@@ -319,66 +319,45 @@ function registerDialogIpc() {
     restoreWindowFocus(BrowserWindow.fromWebContents(event.sender));
   });
 
-  // Windows: Electron's print dialog often has no preview / fails USB printers.
-  // Render @media print CSS → PDF, then open in the system PDF viewer (Edge/Adobe).
+  // Open the OS print dialog directly (no PDF file / preview).
   ipcMain.handle("print:page", async (event) => {
     const wc = event.sender;
     const parent = BrowserWindow.fromWebContents(wc);
-    log("print:page invoked");
+    log("print:page → system print dialog");
     try {
       if (parent && !parent.isDestroyed()) {
         if (parent.isMinimized()) parent.restore();
         parent.focus();
       }
 
-      const pdfBuffer = await Promise.race([
-        wc.printToPDF({
-          printBackground: true,
-          pageSize: "A4",
-          preferCSSPageSize: true,
-          margins: { marginType: "none" },
-        }),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("printToPDF timed out after 45s")),
-            45000
-          )
-        ),
-      ]);
-
-      const filePath = path.join(
-        app.getPath("temp"),
-        `mylab-report-${Date.now()}.pdf`
-      );
-      fs.writeFileSync(filePath, pdfBuffer);
-      log(`print:page wrote PDF (${pdfBuffer.length} bytes) → ${filePath}`);
-
-      // Primary path: system viewer. Do NOT wait on BrowserWindow ready-to-show —
-      // Chromium's PDF viewer often never fires it when show:false, so Print
-      // appeared to do nothing.
-      const openErr = await shell.openPath(filePath);
-      if (openErr) {
-        log(`print:page openPath failed: ${openErr}`);
-        throw new Error(openErr);
-      }
-
-      log("print:page opened system PDF viewer");
-      return { ok: true, mode: "system-viewer", path: filePath };
-    } catch (err) {
-      log("print:page PDF path failed", err);
-      // Last resort: Electron print dialog (no preview on Windows)
-      return new Promise((resolve) => {
-        try {
-          wc.print({}, (success, failureReason) => {
-            resolve({
-              ok: !!success,
-              error: success ? null : failureReason || "Print cancelled",
-            });
-          });
-        } catch (e) {
-          resolve({ ok: false, error: e?.message || String(e) });
-        }
+      return await new Promise((resolve) => {
+        wc.print(
+          {
+            silent: false,
+            printBackground: true,
+            deviceName: "",
+          },
+          (success, failureReason) => {
+            if (success) {
+              log("print:page sent to printer");
+              resolve({ ok: true, mode: "print-dialog" });
+            } else {
+              log(`print:page dialog ended: ${failureReason || "cancelled"}`);
+              resolve({
+                ok: false,
+                error: failureReason || "Print cancelled",
+              });
+            }
+            restoreWindowFocus(parent);
+          }
+        );
       });
+    } catch (err) {
+      log("print:page failed", err);
+      return {
+        ok: false,
+        error: err && err.message ? err.message : String(err),
+      };
     }
   });
 }
