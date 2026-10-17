@@ -15,9 +15,11 @@ import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useUser } from "@/lib/useUser";
+import { reportDisplayNumber } from "@/lib/reportNumber";
 
 interface Report {
   id: number;
+  daily_number?: number | null;
   date: string;
   patient_name: string;
   patient_age: number;
@@ -96,12 +98,12 @@ export default function CompounderReportsPage() {
 
   async function handleDeleteReport(r: Report) {
     if (!canDeleteReport(r)) return;
-    if (!confirm(`Delete report #${r.id} for ${r.patient_name}? This cannot be undone.`)) return;
+    if (!confirm(`Delete report #${reportDisplayNumber(r)} for ${r.patient_name}? This cannot be undone.`)) return;
     const res = await apiRequest(`/api/reports/${r.id}`, { method: "DELETE" });
     if (res.ok) {
       if (navigator.vibrate) navigator.vibrate(50);
       setReports((prev) => prev.filter((x) => x.id !== r.id));
-      setAlert({ type: "success", msg: `Report #${r.id} deleted` });
+      setAlert({ type: "success", msg: `Report #${reportDisplayNumber(r)} deleted` });
     } else {
       const d = await res.json().catch(() => ({}));
       setAlert({ type: "error", msg: d.error || "Failed to delete" });
@@ -264,7 +266,7 @@ export default function CompounderReportsPage() {
                           color="text.secondary"
                           sx={{ display: "block" }}
                         >
-                          #{r.id} •{" "}
+                          #{reportDisplayNumber(r)} •{" "}
                           {new Date(r.date).toLocaleDateString("en-IN", {
                             day: "numeric",
                             month: "short",

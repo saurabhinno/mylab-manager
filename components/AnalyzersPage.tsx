@@ -23,6 +23,7 @@ import {
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { reportDisplayNumber } from "@/lib/reportNumber";
 
 type InboxRow = {
   id: number;
@@ -36,6 +37,7 @@ type InboxRow = {
 
 type PendingReport = {
   id: number;
+  daily_number?: number | null;
   patient_name: string;
   date: string;
   status: string;
@@ -176,12 +178,14 @@ export default function AnalyzersPage({
           }
         }
         if (saved.auto_created && saved.report_id) {
+          const shown =
+            saved.daily_number || saved.report_id;
           appendLog(
-            `Auto-created CBC report #${saved.report_id} · ${saved.patient_name || "patient"} · applied ${saved.applied ?? "?"}`
+            `Auto-created CBC report #${shown} · ${saved.patient_name || "patient"} · applied ${saved.applied ?? "?"}`
           );
           setAlert({
             type: "success",
-            msg: `CBC report #${saved.report_id} created — open Reports to edit/print`,
+            msg: `CBC report #${shown} created — open Reports to edit/print`,
           });
           window.dispatchEvent(
             new CustomEvent("mylab:report-created", {
@@ -418,10 +422,11 @@ export default function AnalyzersPage({
         appendLog(`Apply FAILED: ${data.error}`);
         setAlert({ type: "error", msg: data.error || "Apply failed" });
       } else {
-        appendLog(`Applied ${data.applied} values to report #${data.report_id}`);
+        const shown = data.daily_number || data.report_id;
+        appendLog(`Applied ${data.applied} values to report #${shown}`);
         setAlert({
           type: "success",
-          msg: `Applied ${data.applied} values to report #${data.report_id}`,
+          msg: `Applied ${data.applied} values to report #${shown}`,
         });
         await refreshInbox();
       }
@@ -448,12 +453,13 @@ export default function AnalyzersPage({
         appendLog(`Create CBC FAILED: ${data.error}`);
         setAlert({ type: "error", msg: data.error || "Create report failed" });
       } else {
+        const shown = data.daily_number || data.report_id;
         appendLog(
-          `Created report #${data.report_id} for ${data.patient_name} · applied ${data.applied}/${data.mapped_count} CBC values`
+          `Created report #${shown} for ${data.patient_name} · applied ${data.applied}/${data.mapped_count} CBC values`
         );
         setAlert({
           type: "success",
-          msg: `CBC report #${data.report_id} created with ${data.applied} values filled`,
+          msg: `CBC report #${shown} created with ${data.applied} values filled`,
         });
         await refreshInbox();
         const base = role === "compounder" ? "/compounder/reports" : "/doctor/reports";
@@ -806,7 +812,7 @@ export default function AnalyzersPage({
                             </MenuItem>
                             {pending.map((r) => (
                               <MenuItem key={r.id} value={String(r.id)}>
-                                #{r.id} · {r.patient_name} · {r.date}
+                                #{reportDisplayNumber(r)} · {r.patient_name} · {r.date}
                               </MenuItem>
                             ))}
                           </TextField>

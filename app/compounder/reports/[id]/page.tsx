@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import { useUser } from "@/lib/useUser";
 import { printReport } from "@/lib/printReport";
+import { reportDisplayNumber } from "@/lib/reportNumber";
 
 interface ReportItemData {
   id: number;
@@ -37,6 +38,7 @@ interface LabSettingsData {
 
 interface ReportData {
   id: number;
+  daily_number?: number | null;
   date: string;
   patient_name: string;
   patient_age: number;
@@ -105,7 +107,7 @@ export default function ReportViewPage() {
 
   async function handleDelete() {
     if (!report || !canDelete) return;
-    if (!confirm(`Delete report #${report.id} for ${report.patient_name}? This cannot be undone.`)) return;
+    if (!confirm(`Delete report #${reportDisplayNumber(report)} for ${report.patient_name}? This cannot be undone.`)) return;
     const res = await apiRequest(`/api/reports/${report.id}`, { method: "DELETE" });
     if (res.ok) router.push("/compounder/reports");
   }
@@ -237,7 +239,7 @@ export default function ReportViewPage() {
           {/* BODY */}
           <Box className="report-body" sx={{ flexGrow: 1, px: 5, py: 2 }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
-              <Typography variant="caption" sx={{ fontWeight: 700, fontSize: 12 }}>Report #{report.id}</Typography>
+              <Typography variant="caption" sx={{ fontWeight: 700, fontSize: 12 }}>Report #{reportDisplayNumber(report)}</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
                 Date: {new Date(report.date).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
               </Typography>

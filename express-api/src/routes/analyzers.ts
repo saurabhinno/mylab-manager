@@ -14,6 +14,10 @@ import { Report } from "@/models/Report";
 import { ReportItem } from "@/models/ReportItem";
 import { TestDefinition } from "@/models/TestDefinition";
 import { User } from "@/models/User";
+import {
+  allocateTodayReportNumber,
+  findReportBySampleOrId,
+} from "@/lib/dailyReportNumber";
 
 const router = Router();
 
@@ -121,7 +125,10 @@ async function createCbcReportFromInbox(
     String(opts.patient_name || row.patient_name || "Unknown").trim() ||
     "Unknown";
 
+  const { date, daily_number } = await allocateTodayReportNumber();
   const report = await Report.create({
+    date,
+    daily_number,
     patient_name: patientName,
     patient_age: Number(opts.age) || 0,
     patient_weight: 0,
@@ -182,6 +189,7 @@ async function createCbcReportFromInbox(
 
   return {
     report_id: report.id,
+    daily_number: report.daily_number,
     applied,
     patient_name: patientName,
     mapped_count: mapped.filter((m) => m.testName).length,
@@ -335,22 +343,21 @@ router.post("/inbox/:id/apply", async (req: Request, res: Response) => {
     const row = await AnalyzerInbox.findByPk(req.params.id);
     if (!row) return res.status(404).json({ error: "Not found" });
 
-    let reportId = req.body?.report_id ? Number(req.body.report_id) : null;
-    if (!reportId && row.sample_id && /^\d+$/.test(row.sample_id.trim())) {
-      reportId = Number(row.sample_id.trim());
-    }
-
-    if (!reportId) {
-      return res.status(400).json({
-        error: "report_id required (or set sample id on the machine to the report number)",
+    let report: Report | null = null;
+    if (req.body?.report_id) {
+      report = await Report.findByPk(Number(req.body.report_id), {
+        include: [{ model: ReportItem, as: "reportItems" }],
       });
+    } else if (row.sample_id && /^\d+$/.test(row.sample_id.trim())) {
+      // Machine sample id = today's day-wise report number
+      report = await findReportBySampleOrId(Number(row.sample_id.trim()), true);
     }
 
-    const report = await Report.findByPk(reportId, {
-      include: [{ model: ReportItem, as: "reportItems" }],
-    });
     if (!report) {
-      return res.status(404).json({ error: "Report not found" });
+      return res.status(400).json({
+        error:
+          "report_id required (or set sample id on the machine to today's report number)",
+      });
     }
     if (report.status === "finalized") {
       return res.status(400).json({ error: "Report is finalized" });
@@ -366,7 +373,12 @@ router.post("/inbox/:id/apply", async (req: Request, res: Response) => {
     row.applied_report_id = report.id;
     await row.save();
 
-    return res.json({ success: true, applied, report_id: report.id });
+    return res.json({
+      success: true,
+      applied,
+      report_id: report.id,
+      daily_number: report.daily_number,
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Apply failed" });

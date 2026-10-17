@@ -42,6 +42,7 @@ import {
 } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
+import { reportDisplayNumber } from "@/lib/reportNumber";
 
 type TestDef = {
   id: number;
@@ -65,6 +66,7 @@ type ReportItem = {
 
 type ReportData = {
   id: number;
+  daily_number?: number | null;
   patient_name: string;
   patient_age: number;
   patient_gender: string | null;
@@ -376,7 +378,9 @@ export default function ReportCreateWizard({
             Back
           </Button>
           <Typography variant="h6" fontWeight={700}>
-            {step === 1 ? "New sample" : `Enter results · #${report?.id}`}
+            {step === 1
+              ? "New sample"
+              : `Enter results · #${report ? reportDisplayNumber(report) : ""}`}
           </Typography>
           <Chip
             size="small"

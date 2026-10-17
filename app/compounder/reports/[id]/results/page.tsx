@@ -14,6 +14,7 @@ import {
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 import { useUser } from "@/lib/useUser";
+import { reportDisplayNumber } from "@/lib/reportNumber";
 
 interface ReportItemData {
   id: number;
@@ -109,6 +110,7 @@ const ResultInputRow = React.memo(function ResultInputRow({
 
 interface ReportData {
   id: number;
+  daily_number?: number | null;
   patient_name: string;
   patient_age: number;
   patient_gender: string | null;
@@ -210,7 +212,7 @@ export default function EnterResultsPage() {
 
   async function handleDelete() {
     if (!report || !canDelete) return;
-    if (!confirm(`Delete report #${report.id} for ${report.patient_name}? This cannot be undone.`)) return;
+    if (!confirm(`Delete report #${reportDisplayNumber(report)} for ${report.patient_name}? This cannot be undone.`)) return;
     const res = await apiRequest(`/api/reports/${report.id}`, { method: "DELETE" });
     if (res.ok) {
       router.push("/compounder/reports");
@@ -322,7 +324,7 @@ export default function EnterResultsPage() {
             Back
           </Button>
           <Box>
-            <Typography variant="h5">Enter Results — #{report.id}</Typography>
+            <Typography variant="h5">Enter Results — #{reportDisplayNumber(report)}</Typography>
             <Typography variant="body2" color="text.secondary">
               {report.patient_name} • {report.patient_age} yrs {report.patient_gender ? `• ${report.patient_gender}` : ""} • {new Date(report.date).toLocaleDateString("en-IN")}
             </Typography>

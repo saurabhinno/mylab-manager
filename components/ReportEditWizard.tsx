@@ -41,6 +41,7 @@ import {
 import Link from "next/link";
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
+import { reportDisplayNumber } from "@/lib/reportNumber";
 
 type TestDef = {
   id: number;
@@ -64,6 +65,7 @@ type ReportItem = {
 
 type ReportData = {
   id: number;
+  daily_number?: number | null;
   patient_name: string;
   patient_age: number;
   patient_gender: string | null;
@@ -396,7 +398,7 @@ export default function ReportEditWizard({
             Back
           </Button>
           <Typography variant="h6" fontWeight={700}>
-            Edit report #{report.id}
+            Edit report #{reportDisplayNumber(report)}
           </Typography>
           <Chip
             size="small"

@@ -12,9 +12,11 @@ import {
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { reportDisplayNumber } from "@/lib/reportNumber";
 
 interface Report {
   id: number;
+  daily_number?: number | null;
   date: string;
   patient_name: string;
   patient_age: number;
@@ -111,7 +113,7 @@ export default function DoctorDashboardPage() {
                 <TableBody>
                   {reports.slice(0, 20).map((r) => (
                     <TableRow key={r.id} hover sx={{ "& td": { fontSize: 13 } }}>
-                      <TableCell sx={{ color: "text.secondary" }}>#{r.id}</TableCell>
+                      <TableCell sx={{ color: "text.secondary" }}>#{reportDisplayNumber(r)}</TableCell>
                       <TableCell sx={{ fontWeight: 500 }}>{r.patient_name}</TableCell>
                       <TableCell>{r.patient_age} yrs</TableCell>
                       <TableCell>{r.referred_by || "—"}</TableCell>

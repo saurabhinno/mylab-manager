@@ -4,6 +4,8 @@ import { User } from "@/models/User";
 
 export class Report extends Model {
   declare id: number;
+  /** Day-wise sequence: resets to 1 every calendar day. */
+  declare daily_number: number;
   declare date: Date;
   declare patient_name: string;
   declare patient_age: number;
@@ -25,6 +27,10 @@ Report.init(
       type: DataTypes.INTEGER.UNSIGNED,
       autoIncrement: true,
       primaryKey: true,
+    },
+    daily_number: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: true,
     },
     date: {
       type: DataTypes.DATEONLY,

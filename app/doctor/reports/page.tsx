@@ -13,9 +13,11 @@ import {
 import Sidebar from "@/components/Sidebar";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { reportDisplayNumber } from "@/lib/reportNumber";
 
 interface Report {
   id: number;
+  daily_number?: number | null;
   date: string;
   patient_name: string;
   patient_age: number;
@@ -62,7 +64,7 @@ export default function DoctorReportsPage() {
   }
 
   async function handleDelete(r: Report) {
-    if (!confirm(`Delete report #${r.id} for ${r.patient_name}? This cannot be undone.`)) return;
+    if (!confirm(`Delete report #${reportDisplayNumber(r)} for ${r.patient_name}? This cannot be undone.`)) return;
     const res = await apiRequest(`/api/reports/${r.id}`, { method: "DELETE" });
     if (res.ok) setReports((prev) => prev.filter((x) => x.id !== r.id));
   }
@@ -232,7 +234,7 @@ export default function DoctorReportsPage() {
                 <TableBody>
                   {filtered.map((r) => (
                     <TableRow key={r.id} hover sx={{ "& td": { fontSize: 13 } }}>
-                      <TableCell sx={{ color: "text.secondary", fontWeight: 500 }}>#{r.id}</TableCell>
+                      <TableCell sx={{ color: "text.secondary", fontWeight: 500 }}>#{reportDisplayNumber(r)}</TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>{r.patient_name}</TableCell>
                       <TableCell>{r.patient_age} yrs</TableCell>
                       <TableCell>{r.patient_weight} kg</TableCell>

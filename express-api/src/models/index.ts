@@ -252,6 +252,26 @@ async function ensureLabSettingsCatalogueColumns() {
   }
 }
 
+/** SQLite: add reports.daily_number if missing, then backfill day-wise sequences. */
+async function ensureReportDailyNumber() {
+  try {
+    if (isSqlite) {
+      const [cols] = await sequelize.query("PRAGMA table_info(reports)");
+      const names = new Set((cols as { name: string }[]).map((c) => c.name));
+      if (!names.has("daily_number")) {
+        await sequelize.query(
+          "ALTER TABLE reports ADD COLUMN daily_number INTEGER"
+        );
+        console.log("Added reports.daily_number column");
+      }
+    }
+    const { backfillDailyNumbers } = await import("@/lib/dailyReportNumber");
+    await backfillDailyNumbers();
+  } catch (err) {
+    console.warn("Could not ensure reports.daily_number", err);
+  }
+}
+
 async function getOrCreateLabSettings() {
   let settings = await LabSettings.findOne();
   if (!settings) {
@@ -383,6 +403,7 @@ export const initDatabase = async () => {
   await LabSettings.sync(syncOpts);
   await AnalyzerInbox.sync(syncOpts);
   await ensureLabSettingsCatalogueColumns();
+  await ensureReportDailyNumber();
 
   // Seed default doctor if not exists
   const defaultDoctor = await User.findOne({ where: { email: "doctor@mylab.com" } });

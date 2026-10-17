@@ -5,6 +5,7 @@ import { TestDefinition } from "@/models/TestDefinition";
 import { User } from "@/models/User";
 import { LabSettings } from "@/models/LabSettings";
 import { getUserIdFromCookie } from "@/lib/session";
+import { allocateTodayReportNumber } from "@/lib/dailyReportNumber";
 
 const router = Router();
 
@@ -86,7 +87,10 @@ router.post("/", async (req: Request, res: Response) => {
       return res.status(500).json({ error: "No doctor account configured." });
     }
 
+    const { date, daily_number } = await allocateTodayReportNumber();
     const report = await Report.create({
+      date,
+      daily_number,
       patient_name: patientName.trim(),
       patient_age: age || 0,
       patient_weight: weight || 0,
@@ -141,7 +145,11 @@ router.post("/", async (req: Request, res: Response) => {
       }
     }
 
-    return res.json({ success: true, reportId: report.id });
+    return res.json({
+      success: true,
+      reportId: report.id,
+      dailyNumber: report.daily_number,
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Internal server error" });
