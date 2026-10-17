@@ -17,6 +17,7 @@ export class ReportItem extends Model {
   declare note: string | null;
   declare price: number;
   declare panel_name: string | null;
+  declare display_order: number;
 }
 
 ReportItem.init(
@@ -76,6 +77,11 @@ ReportItem.init(
       type: DataTypes.STRING(220),
       allowNull: true,
       defaultValue: null,
+    },
+    display_order: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     },
   },
   {

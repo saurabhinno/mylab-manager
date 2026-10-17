@@ -1,24 +1,28 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import type { DragEvent, KeyboardEvent } from "react";
 import {
   Box, Typography, Card, CardContent, Grid, TextField, Button,
   Alert, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, Chip, InputAdornment, FormControl, InputLabel, Select,
   MenuItem, Tabs, Tab, Divider, IconButton, Tooltip, Switch,
-  FormControlLabel, Collapse,
+  FormControlLabel,
 } from "@mui/material";
 import {
-  AddOutlined, SearchOutlined, ScienceOutlined, ArrowBackOutlined, EditOutlined,
+  AddOutlined, SearchOutlined, ArrowBackOutlined, EditOutlined,
   DeleteOutlined, ExpandMoreOutlined, ExpandLessOutlined, AddCircleOutlined,
-  RemoveCircleOutlined,
+  RemoveCircleOutlined, DragIndicatorOutlined,
 } from "@mui/icons-material";
 import Sidebar from "@/components/Sidebar";
+import { useDragReorder } from "@/components/useDragReorder";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
 interface TestParam {
   id?: number;
+  /** Stable key for parameters that have not been saved yet */
+  key?: string;
   name: string;
   unit: string | null;
   /** Kept as string while editing so decimal typing is not swallowed */
@@ -26,6 +30,12 @@ interface TestParam {
   default_max: number | string | null;
   method: string | null;
   display_order: number;
+}
+
+function sortParams<T extends { id?: number; display_order?: number }>(params: T[]): T[] {
+  return [...params].sort(
+    (a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || (a.id ?? 0) - (b.id ?? 0)
+  );
 }
 
 function parseOptionalNumber(value: number | string | null | undefined): number | null {
@@ -39,14 +49,68 @@ const ParameterRow = React.memo(function ParameterRow({
   param,
   onChange,
   onRemove,
+  canDrag,
+  dragging,
+  dropTarget,
+  rowDrag,
+  grip,
 }: {
   index: number;
   param: TestParam;
   onChange: (index: number, field: keyof TestParam, value: string | number | null) => void;
   onRemove: (index: number) => void;
+  canDrag: boolean;
+  dragging: boolean;
+  dropTarget: boolean;
+  rowDrag: {
+    onDragOver: (event: DragEvent) => void;
+    onDrop: (event: DragEvent) => void;
+  } | null;
+  grip: {
+    draggable: true;
+    tabIndex: number;
+    role: "button";
+    "aria-label": string;
+    onDragStart: (event: DragEvent) => void;
+    onDragEnd: () => void;
+    onKeyDown: (event: KeyboardEvent) => void;
+  } | null;
 }) {
   return (
-    <Box sx={{ display: "flex", gap: 1, mb: 1.5, alignItems: "center", p: 1.5, bgcolor: "#f8fafc", borderRadius: 1 }}>
+    <Box
+      data-drag-row
+      {...(rowDrag ?? {})}
+      sx={{
+        display: "flex",
+        gap: 1,
+        mb: 1.5,
+        alignItems: "center",
+        p: 1.5,
+        bgcolor: dropTarget ? "#e8f2fb" : "#f8fafc",
+        borderRadius: 1,
+        opacity: dragging ? 0.55 : 1,
+        outline: dropTarget ? "1px dashed #0f4c81" : "none",
+      }}
+    >
+      {canDrag && grip && (
+        <Box
+          component="span"
+          title="Drag to reorder"
+          {...grip}
+          sx={{
+            display: "inline-flex",
+            alignItems: "center",
+            cursor: "grab",
+            color: "text.disabled",
+            p: 0.5,
+            borderRadius: 1,
+            "&:active": { cursor: "grabbing" },
+            "&:focus-visible": { outline: "2px solid #0f4c81" },
+          }}
+        >
+          <DragIndicatorOutlined fontSize="small" />
+        </Box>
+      )}
       <Typography sx={{ fontSize: 12, color: "text.secondary", minWidth: 20 }}>{index + 1}.</Typography>
       <TextField
         size="small"
@@ -164,7 +228,7 @@ export default function DoctorTestsPage() {
     setUnit(test.unit || "");
     setReportTime(test.report_time || "");
     setIsPanel(test.is_panel);
-    setParameters(test.parameters?.map((p, i) => ({
+    setParameters(sortParams(test.parameters || []).map((p, i) => ({
       id: p.id,
       name: p.name,
       unit: p.unit,
@@ -172,7 +236,7 @@ export default function DoctorTestsPage() {
       default_max: p.default_max,
       method: p.method,
       display_order: p.display_order ?? i + 1,
-    })) || []);
+    })));
     setEditingId(test.id);
     setErrors({});
     setView("edit");
@@ -187,6 +251,7 @@ export default function DoctorTestsPage() {
     setParameters((prev) => [
       ...prev,
       {
+        key: `new-${Date.now()}-${prev.length}`,
         name: "",
         unit: null,
         default_min: null,
@@ -198,7 +263,9 @@ export default function DoctorTestsPage() {
   }
 
   const removeParameter = useCallback((idx: number) => {
-    setParameters((prev) => prev.filter((_, i) => i !== idx));
+    setParameters((prev) =>
+      prev.filter((_, i) => i !== idx).map((param, index) => ({ ...param, display_order: index + 1 }))
+    );
   }, []);
 
   const updateParameter = useCallback(
@@ -209,6 +276,12 @@ export default function DoctorTestsPage() {
     },
     []
   );
+
+  const reorderParameters = useCallback((next: TestParam[]) => {
+    setParameters(next.map((param, index) => ({ ...param, display_order: index + 1 })));
+  }, []);
+
+  const parameterDrag = useDragReorder(parameters, reorderParameters);
 
   function toggleExpand(id: number) {
     setExpandedPanels((prev) => {
@@ -364,8 +437,8 @@ export default function DoctorTestsPage() {
                       </TableCell>
                     </TableRow>
                     {/* Expanded panel parameters */}
-                    {test.is_panel && expandedPanels.has(test.id) && test.parameters?.map((param) => (
-                      <TableRow key={`param-${param.display_order}`} sx={{ bgcolor: "#f8fafc" }}>
+                    {test.is_panel && expandedPanels.has(test.id) && sortParams(test.parameters || []).map((param) => (
+                      <TableRow key={`param-${param.id ?? param.display_order}`} sx={{ bgcolor: "#f8fafc" }}>
                         <TableCell></TableCell>
                         <TableCell sx={{ pl: 5, fontSize: 12, color: "text.secondary" }}>↳ {param.name}</TableCell>
                         <TableCell sx={{ fontSize: 11 }}>{param.unit || "—"}</TableCell>
@@ -465,9 +538,16 @@ export default function DoctorTestsPage() {
                 <Grid item xs={12}>
                   <Divider sx={{ my: 2 }} />
                   <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                      Panel Parameters ({parameters.length})
-                    </Typography>
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        Panel Parameters ({parameters.length})
+                      </Typography>
+                      {parameters.length > 1 && (
+                        <Typography variant="caption" color="text.secondary">
+                          Drag the handle to set the order used on new reports.
+                        </Typography>
+                      )}
+                    </Box>
                     <Button startIcon={<AddCircleOutlined />} onClick={addParameter} variant="outlined" size="small">
                       Add Parameter
                     </Button>
@@ -476,11 +556,20 @@ export default function DoctorTestsPage() {
 
                   {parameters.map((param, idx) => (
                     <ParameterRow
-                      key={param.id ?? `new-${idx}`}
+                      key={param.id ?? param.key ?? `new-${idx}`}
                       index={idx}
                       param={param}
                       onChange={updateParameter}
                       onRemove={removeParameter}
+                      canDrag={parameters.length > 1}
+                      dragging={parameterDrag.dragIndex === idx}
+                      dropTarget={
+                        parameterDrag.overIndex === idx &&
+                        parameterDrag.dragIndex != null &&
+                        parameterDrag.dragIndex !== idx
+                      }
+                      rowDrag={parameters.length > 1 ? parameterDrag.rowProps(idx) : null}
+                      grip={parameters.length > 1 ? parameterDrag.handleProps(idx) : null}
                     />
                   ))}
                 </Grid>

@@ -50,7 +50,12 @@ router.get("/", async (req: Request, res: Response) => {
   try {
     const tests = await TestDefinition.findAll({
       where: { parent_id: null },
-      include: [{ model: TestDefinition, as: "parameters", order: [["display_order", "ASC"]] }],
+      include: [{
+        model: TestDefinition,
+        as: "parameters",
+        separate: true,
+        order: [["display_order", "ASC"], ["id", "ASC"]],
+      }],
       order: [["category", "ASC"], ["name", "ASC"]],
     });
     return res.json(tests);
@@ -134,7 +139,12 @@ router.post("/", requireDoctor, async (req: Request, res: Response) => {
 
     // Return with parameters
     const result = await TestDefinition.findByPk(test.id, {
-      include: [{ model: TestDefinition, as: "parameters" }],
+      include: [{
+        model: TestDefinition,
+        as: "parameters",
+        separate: true,
+        order: [["display_order", "ASC"], ["id", "ASC"]],
+      }],
     });
 
     return res.json(result);

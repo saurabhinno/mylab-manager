@@ -147,7 +147,8 @@ async function createCbcReportFromInbox(
   const ordered = [...params].sort(
     (a, b) => (a.display_order || 0) - (b.display_order || 0)
   );
-  for (const param of ordered) {
+  for (let i = 0; i < ordered.length; i++) {
+    const param = ordered[i];
     await ReportItem.create({
       report_id: report.id,
       test_definition_id: param.id,
@@ -161,6 +162,7 @@ async function createCbcReportFromInbox(
       note: null,
       price: 0,
       panel_name: cbc.name,
+      display_order: i + 1,
     });
   }
 
