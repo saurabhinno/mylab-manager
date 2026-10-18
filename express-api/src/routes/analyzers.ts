@@ -8,6 +8,8 @@ import {
   ANALYZER_PROFILES,
   getProfile,
   convertAnalyzerValueToLab,
+  matchCatalogueName,
+  normalizeTestName,
 } from "@/lib/analyzerMaps";
 import { AnalyzerInbox } from "@/models/AnalyzerInbox";
 import { Report } from "@/models/Report";
@@ -69,29 +71,55 @@ async function applyMappedToReport(
   });
   if (!full) return 0;
   const items = (full as any).reportItems as ReportItem[];
+  const itemNames = items.map((it) => it.test_name);
   let applied = 0;
-  // Prefer first mapped value per test name (avoids P-LCC overwriting PLT, etc.).
-  const seen = new Set<string>();
+  // Prefer first mapped value per resolved item (avoids P-LCC overwriting PLT).
+  const seen = new Set<number>();
   for (const m of mapped) {
     if (!m.testName || m.value === "") continue;
-    const key = m.testName.trim().toLowerCase();
-    if (seen.has(key)) continue;
-    const target = items.find((it) => it.test_name.trim().toLowerCase() === key);
-    if (target) {
-      target.result_value = convertAnalyzerValueToLab(
-        m.testName,
-        String(m.value),
-        m.unit
-      );
-      target.result_type = "numeric";
-      await target.save();
-      applied++;
-      seen.add(key);
-    }
+    const matchedName = matchCatalogueName(itemNames, m.testName);
+    if (!matchedName) continue;
+    const target = items.find((it) => it.test_name === matchedName);
+    if (!target || seen.has(target.id)) continue;
+    target.result_value = convertAnalyzerValueToLab(
+      target.test_name,
+      String(m.value),
+      m.unit,
+      target.unit
+    );
+    target.result_type = "numeric";
+    await target.save();
+    applied++;
+    seen.add(target.id);
   }
   full.status = "results_entered";
   await full.save();
   return applied;
+}
+
+/** Resolve CBC panel even if the catalogue name was recreated (spacing/punctuation). */
+async function findCbcPanel() {
+  const panels = await TestDefinition.findAll({
+    where: { is_panel: true },
+    include: [{ model: TestDefinition, as: "parameters" }],
+  });
+  if (!panels.length) return null;
+
+  const score = (name: string) => {
+    const n = normalizeTestName(name);
+    if (n === "completebloodcountcbc" || n === "cbc") return 100;
+    if (n.includes("completebloodcount") && n.includes("cbc")) return 90;
+    if (n.includes("cbc")) return 80;
+    if (n.includes("completebloodcount")) return 70;
+    return 0;
+  };
+
+  const ranked = [...panels]
+    .map((p) => ({ p, s: score(p.name) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s || b.p.id - a.p.id);
+
+  return ranked[0]?.p || null;
 }
 
 async function createCbcReportFromInbox(
@@ -105,12 +133,11 @@ async function createCbcReportFromInbox(
   },
   actor: User
 ) {
-  const cbc = await TestDefinition.findOne({
-    where: { name: "Complete Blood Count (CBC)", is_panel: true },
-    include: [{ model: TestDefinition, as: "parameters" }],
-  });
+  const cbc = await findCbcPanel();
   if (!cbc) {
-    throw new Error("CBC panel not found in catalogue");
+    throw new Error(
+      "CBC panel not found in catalogue. Add a panel named like Complete Blood Count (CBC)."
+    );
   }
 
   const doctor =

@@ -32,7 +32,7 @@ type SeedPanel = {
 // Panel tests with their parameters (full common Indian lab catalogues)
 const panelTests: SeedPanel[] = [
   {
-    panel: { name: "Complete Blood Count (CBC)", category: "Hematology", sample_type: "Blood (EDTA)", method: "Automated Cell Counter", price: 350, report_time: "Same Day" },
+    panel: { name: "Complete Blood Count(CBC)", category: "Hematology", sample_type: "Blood (EDTA)", method: "Automated Cell Counter", price: 350, report_time: "Same Day" },
     parameters: [
       { name: "Hemoglobin (Hb)", unit: "g/dL", default_min: 12, default_max: 17, method: "Cyanmethemoglobin", display_order: 1 },
       { name: "Total WBC Count", unit: "cells/µL", default_min: 4000, default_max: 11000, method: "Automated", display_order: 2 },
