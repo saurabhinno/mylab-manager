@@ -160,7 +160,11 @@ a.MuiButton-textPrimary:hover {
   }
 
   .report-header .report-logo {
-    height: 52px !important;
+    height: 84px !important;
+    width: auto !important;
+    max-width: 300px !important;
+    flex-shrink: 0 !important;
+    object-fit: contain !important;
   }
 
   .report-test-title {

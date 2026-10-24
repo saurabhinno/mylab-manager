@@ -197,7 +197,7 @@ export default function DoctorReportViewPage() {
                     className="report-logo"
                     src={lab.logo_path}
                     alt="Logo"
-                    sx={{ height: 55, objectFit: "contain" }}
+                    sx={{ height: 88, width: "auto", maxWidth: 300, flexShrink: 0, objectFit: "contain" }}
                   />
                 )}
                 <Box sx={{ flexGrow: 1, textAlign: lab?.logo_path ? "left" : "center" }}>
