@@ -10,6 +10,7 @@ import {
   convertAnalyzerValueToLab,
   matchCatalogueName,
   normalizeTestName,
+  expandMidCellResults,
 } from "@/lib/analyzerMaps";
 import { AnalyzerInbox } from "@/models/AnalyzerInbox";
 import { Report } from "@/models/Report";
@@ -40,8 +41,12 @@ function mapResults(
   results: { code: string; value: string; unit: string | null }[],
   codeMap: Record<string, string>
 ) {
-  const mapped: { code: string; testName: string | null; value: string; unit: string | null }[] =
-    [];
+  const mapped: {
+    code: string;
+    testName: string | null;
+    value: string;
+    unit: string | null;
+  }[] = [];
   for (const r of results) {
     if (isNoiseCode(r.code)) continue;
     const key = normalizeKey(r.code);
@@ -59,12 +64,18 @@ function mapResults(
       unit: r.unit,
     });
   }
-  return mapped;
+  // 3-part MID/MXD → Eosinophil 70% / Monocyte 25% / Basophil 5%
+  return expandMidCellResults(mapped);
 }
 
 async function applyMappedToReport(
   report: Report,
-  mapped: { testName: string | null; value: string; unit?: string | null }[]
+  mapped: {
+    testName: string | null;
+    value: string;
+    unit?: string | null;
+    derivedFromMid?: boolean;
+  }[]
 ) {
   const full = await Report.findByPk(report.id, {
     include: [{ model: ReportItem, as: "reportItems" }],
@@ -88,6 +99,9 @@ async function applyMappedToReport(
       target.unit
     );
     target.result_type = "numeric";
+    if (m.derivedFromMid) {
+      target.note = "Derived from MID (Eos 70% / Mono 25% / Bas 5%)";
+    }
     await target.save();
     applied++;
     seen.add(target.id);

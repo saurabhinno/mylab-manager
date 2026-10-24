@@ -42,34 +42,112 @@ const CBC_3PART_CODES: Record<string, string> = {
   PDWCV: "PDW",
   PDWSD: "PDW",
   PCT: "PCT",
-  "LYM%": "LYMPHOCYTE",
-  "LYMPH%": "LYMPHOCYTE",
-  "LY%": "LYMPHOCYTE",
-  LYM: "LYMPHOCYTE",
-  "MID%": "MONOSYTE",
-  "MXD%": "MONOSYTE",
-  "MON%": "MONOSYTE",
-  MID: "MONOSYTE",
-  "GRAN%": "NEUTROPHIL",
-  "GR%": "NEUTROPHIL",
-  "NEUT%": "NEUTROPHIL",
-  "NEU%": "NEUTROPHIL",
-  GRAN: "NEUTROPHIL",
+  "LYM%": "LYMPHOCYTES",
+  "LYMPH%": "LYMPHOCYTES",
+  "LY%": "LYMPHOCYTES",
+  LYM: "LYMPHOCYTES",
+  // MID%/MXD% are expanded by expandMidCellResults (not mapped 1:1)
+  "MON%": "MONOCYTES",
+  "GRAN%": "NEUTROPHILS",
+  "GR%": "NEUTROPHILS",
+  "NEUT%": "NEUTROPHILS",
+  "NEU%": "NEUTROPHILS",
+  GRAN: "NEUTROPHILS",
   // Absolute counts — only applied if the panel has matching params
   "LYM#": "Absolute Lymphocyte Count",
   "LYMPH#": "Absolute Lymphocyte Count",
   "LY#": "Absolute Lymphocyte Count",
-  "MID#": "Absolute Monocyte Count",
-  "MXD#": "Absolute Monocyte Count",
   "GRAN#": "Absolute Neutrophil Count",
   "GR#": "Absolute Neutrophil Count",
   "NEUT#": "Absolute Neutrophil Count",
   "NEU#": "Absolute Neutrophil Count",
   "EOS%": "EOSINOPHIL",
   "EO%": "EOSINOPHIL",
-  "BAS%": "BASOPHIL",
-  "BA%": "BASOPHIL",
+  "BAS%": "BASOPHILS",
+  "BA%": "BASOPHILS",
 };
+
+/**
+ * 3-part MID/MXD = mono + eos + bas (not measured separately).
+ * Lab split (derived): Eosinophil 70%, Monocyte 25%, Basophil 5%.
+ */
+export const MID_CELL_SPLIT = {
+  eosinophil: 0.7,
+  monocyte: 0.25,
+  basophil: 0.05,
+} as const;
+
+const MID_PERCENT_CODES = new Set(["MID%", "MXD%", "MID"]);
+const MID_ABS_CODES = new Set(["MID#", "MXD#"]);
+
+function normalizeAnalyzerCode(code: string) {
+  return code.trim().toUpperCase().replace(/[\s_]/g, "");
+}
+
+function formatSplitValue(n: number, absolute: boolean): string {
+  if (absolute) return String(Math.round(n));
+  const rounded = Math.round(n * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+export type MappedAnalyzerResult = {
+  code: string;
+  testName: string | null;
+  value: string;
+  unit: string | null;
+  /** True when value came from MID/MXD ratio split (not measured). */
+  derivedFromMid?: boolean;
+};
+
+/**
+ * Expand MID%/MXD% (and MID#/MXD#) into Eosinophil / Monocyte / Basophil
+ * using MID_CELL_SPLIT. Other rows pass through unchanged.
+ */
+export function expandMidCellResults(
+  mapped: MappedAnalyzerResult[]
+): MappedAnalyzerResult[] {
+  const out: MappedAnalyzerResult[] = [];
+  for (const m of mapped) {
+    const key = normalizeAnalyzerCode(m.code);
+    const isPct = [...MID_PERCENT_CODES].some(
+      (c) => normalizeAnalyzerCode(c) === key
+    );
+    const isAbs = [...MID_ABS_CODES].some(
+      (c) => normalizeAnalyzerCode(c) === key
+    );
+    if (!isPct && !isAbs) {
+      out.push(m);
+      continue;
+    }
+    const n = parseFloat(String(m.value).replace(/,/g, ""));
+    if (!Number.isFinite(n)) {
+      out.push(m);
+      continue;
+    }
+    out.push({
+      code: m.code,
+      testName: "EOSINOPHIL",
+      value: formatSplitValue(n * MID_CELL_SPLIT.eosinophil, isAbs),
+      unit: m.unit,
+      derivedFromMid: true,
+    });
+    out.push({
+      code: m.code,
+      testName: "MONOCYTES",
+      value: formatSplitValue(n * MID_CELL_SPLIT.monocyte, isAbs),
+      unit: m.unit,
+      derivedFromMid: true,
+    });
+    out.push({
+      code: m.code,
+      testName: "BASOPHILS",
+      value: formatSplitValue(n * MID_CELL_SPLIT.basophil, isAbs),
+      unit: m.unit,
+      derivedFromMid: true,
+    });
+  }
+  return out;
+}
 
 /** Alias groups so machine names match either old or new catalogue labels. */
 const NAME_ALIASES: string[][] = [
@@ -84,7 +162,7 @@ const NAME_ALIASES: string[][] = [
   ["rdwsd"],
   ["plateletcountplt", "plateletcount", "plt", "platelet"],
   ["lymphocyte", "lymphocytes", "lym"],
-  ["monosyte", "monocyte", "monocytes", "mid"], // catalogue typo: MONOSYTE
+  ["monosyte", "monocyte", "monocytes"],
   ["neutrophil", "neutrophils", "gran", "neu", "neut"],
   ["eosinophil", "eosinophils", "eos"],
   ["basophil", "basophils", "bas"],
