@@ -251,14 +251,14 @@ export default function DoctorReportViewPage() {
                 </Box>
               </Box>
 
-              <Typography sx={{ fontSize: 16, fontWeight: 700, color: "#0f4c81", mb: 1.5, borderBottom: "2px solid #0f4c81", pb: 0.5 }}>
+              <Typography className="report-test-title" sx={{ fontSize: 18, fontWeight: 700, color: "#0f4c81", mb: 1.5, borderBottom: "2px solid #0f4c81", pb: 0.5 }}>
                 {page.title}
               </Typography>
 
               <TableContainer>
                 <Table size="small" className="report-results-table">
                   <TableHead>
-                    <TableRow sx={{ "& th": { fontWeight: 700, fontSize: 13, color: "#fff", bgcolor: "#0f4c81", py: 1 } }}>
+                    <TableRow sx={{ "& th": { fontWeight: 700, fontSize: 15, color: "#fff", bgcolor: "#0f4c81", py: 1 } }}>
                       <TableCell>Test Parameter</TableCell>
                       <TableCell align="center">Result</TableCell>
                       <TableCell align="center">Reference Range</TableCell>
@@ -276,15 +276,15 @@ export default function DoctorReportViewPage() {
                       return (
                         <TableRow key={item.id} sx={{
                           bgcolor: abnormal ? "#fef2f2" : idx % 2 === 0 ? "#fff" : "#f8fafc",
-                          "& td": { fontSize: 13, py: compact ? 0.55 : 1, borderBottom: "1px solid #e2e8f0" },
+                          "& td": { fontSize: 15, py: compact ? 0.55 : 1, borderBottom: "1px solid #e2e8f0" },
                         }}>
                           <TableCell sx={{ fontWeight: 500 }}>{item.test_name}</TableCell>
-                          <TableCell align="center" sx={{ fontWeight: 700, color: abnormal ? "#dc2626" : "#1a2332", fontSize: 14 }}>
+                          <TableCell align="center" sx={{ fontWeight: 700, color: abnormal ? "#dc2626" : "#1a2332", fontSize: 16 }}>
                             {item.result_value || "—"}
                             {abnormal && st === "high" ? " ↑" : ""}
                             {abnormal && st === "low" ? " ↓" : ""}
                           </TableCell>
-                          <TableCell align="center" sx={{ color: "text.secondary", whiteSpace: "nowrap", fontSize: 13 }}>
+                          <TableCell align="center" sx={{ color: "text.secondary", whiteSpace: "nowrap", fontSize: 15 }}>
                             {rangeWithUnit}
                           </TableCell>
                         </TableRow>
