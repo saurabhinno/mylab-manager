@@ -231,9 +231,10 @@ export const ANALYZER_PROFILES: AnalyzerProfile[] = [
     label: "Clinitek Status+",
     defaultBaud: 9600,
     protocolHint:
-      "USB serial (FTDI, often COM6). Analyzer Connectivity: Computer, 9600 baud, 8 data bits, no parity, 1 stop. Run a urine strip — MyLab creates a Urine Routine report.",
+      "USB serial (FTDI, often COM6) at 57600 8N1. Run a urine strip — MyLab creates today's Urine Routine report.",
     codes: {
       GLU: "Glucose",
+      BLD: "Blood",
       BIL: "Bilirubin",
       KET: "Ketones",
       SG: "Specific Gravity",

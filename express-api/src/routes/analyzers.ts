@@ -20,8 +20,9 @@ import { User } from "@/models/User";
 import {
   allocateTodayReportNumber,
   findReportBySampleOrId,
+  todayDateOnly,
 } from "@/lib/dailyReportNumber";
-import { looksLikeClinitek, parseClinitek } from "@/lib/clinitek";
+import { looksLikeClinitek, parseClinitek, parseClinitekAstm } from "@/lib/clinitek";
 
 const router = Router();
 
@@ -76,7 +77,8 @@ async function applyMappedToReport(
     value: string;
     unit?: string | null;
     derivedFromMid?: boolean;
-  }[]
+  }[],
+  onlyEmpty = false
 ) {
   const full = await Report.findByPk(report.id, {
     include: [{ model: ReportItem, as: "reportItems" }],
@@ -93,6 +95,7 @@ async function applyMappedToReport(
     if (!matchedName) continue;
     const target = items.find((it) => it.test_name === matchedName);
     if (!target || seen.has(target.id)) continue;
+    if (onlyEmpty && String(target.result_value || "").trim()) continue;
     const converted = convertAnalyzerValueToLab(
       target.test_name,
       String(m.value),
@@ -157,10 +160,21 @@ async function findUrinePanel() {
   return ranked[0]?.p || null;
 }
 
+function looksLikeClinitekAstm(raw: string): boolean {
+  return /Siemens Healthcare Diagnostics/i.test(raw);
+}
+
 function instrumentPayload(raw: string, profileId: string) {
   const cleaned = normalizeInstrumentPayload(raw);
-  if (profileId === "clinitek-status" || looksLikeClinitek(cleaned)) {
-    const parsed = parseClinitek(cleaned);
+  if (
+    profileId === "clinitek-status" ||
+    looksLikeClinitek(cleaned) ||
+    looksLikeClinitekAstm(cleaned)
+  ) {
+    const parsed =
+      looksLikeClinitek(cleaned) && !looksLikeClinitekAstm(cleaned)
+        ? parseClinitek(cleaned)
+        : parseClinitekAstm(cleaned);
     return { format: "clinitek" as const, parsed, cleaned };
   }
   const format = looksLikeHl7(cleaned)
@@ -275,6 +289,26 @@ async function createCbcReportFromInbox(
   };
 }
 
+function samePatientName(a: string, b: string): boolean {
+  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+  return norm(a) === norm(b) && norm(a).length > 0;
+}
+
+/** Today's report for this patient that already includes the urine panel. */
+async function findTodayUrineReport(patientName: string) {
+  const reports = await Report.findAll({
+    where: { date: todayDateOnly() },
+    include: [{ model: ReportItem, as: "reportItems" }],
+  });
+  return (
+    reports.find((report) => {
+      if (!samePatientName(report.patient_name || "", patientName)) return false;
+      const items = ((report as any).reportItems || []) as ReportItem[];
+      return items.some((item) => /urine/i.test(item.panel_name || ""));
+    }) || null
+  );
+}
+
 async function createUrineReportFromInbox(
   row: AnalyzerInbox,
   opts: {
@@ -302,6 +336,37 @@ async function createUrineReportFromInbox(
   const patientName =
     String(opts.patient_name || row.patient_name || "Unknown").trim() ||
     "Unknown";
+
+  let mapped =
+    (JSON.parse(row.parsed_json || "{}") as {
+      mapped?: { testName: string | null; value: string }[];
+    }).mapped || [];
+  if (row.raw) {
+    const pack = instrumentPayload(row.raw, "clinitek-status");
+    mapped = mapResults(pack.parsed.results, loadCodeMap("clinitek-status"));
+    row.parsed_json = JSON.stringify({
+      format: pack.format,
+      parsed: pack.parsed,
+      mapped,
+    });
+  }
+
+  const existing = await findTodayUrineReport(patientName);
+  if (existing) {
+    const applied = await applyMappedToReport(existing, mapped, true);
+    row.status = "applied";
+    row.applied_report_id = existing.id;
+    row.profile_id = "clinitek-status";
+    await row.save();
+    return {
+      report_id: existing.id,
+      daily_number: existing.daily_number,
+      applied,
+      patient_name: existing.patient_name,
+      mapped_count: mapped.filter((m) => m.testName).length,
+      existing: true,
+    };
+  }
 
   const { date, daily_number } = await allocateTodayReportNumber();
   const report = await Report.create({
@@ -344,20 +409,6 @@ async function createUrineReportFromInbox(
     });
   }
 
-  let mapped =
-    (JSON.parse(row.parsed_json || "{}") as {
-      mapped?: { testName: string | null; value: string }[];
-    }).mapped || [];
-  if (row.raw) {
-    const pack = instrumentPayload(row.raw, "clinitek-status");
-    mapped = mapResults(pack.parsed.results, loadCodeMap("clinitek-status"));
-    row.parsed_json = JSON.stringify({
-      format: pack.format,
-      parsed: pack.parsed,
-      mapped,
-    });
-  }
-
   const applied = await applyMappedToReport(report, mapped);
   row.status = "applied";
   row.applied_report_id = report.id;
@@ -371,6 +422,38 @@ async function createUrineReportFromInbox(
     patient_name: patientName,
     mapped_count: mapped.filter((m) => m.testName).length,
   };
+}
+
+export async function importClinitekMessage(raw: string, actor: User) {
+  const pack = instrumentPayload(raw, "clinitek-status");
+  const testedAt = (pack.parsed as { testedAt?: string | null }).testedAt;
+  if (testedAt && testedAt !== todayDateOnly()) {
+    return { skipped: "not-today" as const };
+  }
+  const mapped = mapResults(pack.parsed.results, loadCodeMap("clinitek-status"));
+  if (!mapped.some((m) => m.testName && m.value !== "")) {
+    return { skipped: "no-values" as const };
+  }
+  const row = await AnalyzerInbox.create({
+    machine_path: "COM6",
+    sample_id: pack.parsed.sampleId,
+    patient_name: pack.parsed.patientName,
+    profile_id: "clinitek-status",
+    raw,
+    parsed_json: JSON.stringify({
+      format: pack.format,
+      parsed: pack.parsed,
+      mapped,
+    }),
+    status: "new",
+    received_at: new Date(),
+  });
+  const created = await createUrineReportFromInbox(
+    row,
+    { patient_name: pack.parsed.patientName },
+    actor
+  );
+  return { skipped: null, ...created };
 }
 
 router.use(requireAuth);
@@ -459,10 +542,10 @@ router.post("/inbox", async (req: Request, res: Response) => {
     });
 
     const hasValues = mapped.some((m) => m.testName && m.value !== "");
-    if (autoCreate && hasValues) {
-      const userId = getUserIdFromCookie(req.cookies);
-      const actor = userId ? await User.findByPk(userId) : null;
-      if (actor) {
+    const testedAt = (pack.parsed as { testedAt?: string | null }).testedAt;
+    const isToday = !testedAt || testedAt === todayDateOnly();
+    const actor = (req as any).user as User | undefined;
+    if (autoCreate && hasValues && isToday && actor) {
         try {
           const created =
             pack.format === "clinitek"
@@ -494,10 +577,8 @@ router.post("/inbox", async (req: Request, res: Response) => {
             auto_created: true,
           });
         } catch (err) {
-          console.error("Auto-create CBC report failed", err);
-          // Fall through — inbox row is still saved as new.
+          console.error("Auto-create report failed", err);
         }
-      }
     }
 
     return res.json(row);

@@ -13,6 +13,7 @@ const PROFILE_ID = "cellenium-21";
  */
 export default function AnalyzerLanBridge() {
   const saving = useRef(false);
+  const queue = useRef<{ raw: string; machinePath: string }[]>([]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.mylab?.analyzers) return;
@@ -29,16 +30,18 @@ export default function AnalyzerLanBridge() {
       }
     }
 
-    async function saveMessage(raw: string, machinePath: string) {
-      if (!raw.trim() || saving.current) return;
+    async function pump() {
+      if (saving.current || cancelled) return;
+      const next = queue.current.shift();
+      if (!next) return;
       saving.current = true;
       try {
         const res = await apiRequest("/api/analyzers/inbox", {
           method: "POST",
           body: JSON.stringify({
-            raw,
+            raw: next.raw,
             profile_id: PROFILE_ID,
-            machine_path: machinePath,
+            machine_path: next.machinePath,
             auto_create_report: true,
           }),
         });
@@ -59,7 +62,14 @@ export default function AnalyzerLanBridge() {
         /* ignore */
       } finally {
         saving.current = false;
+        void pump();
       }
+    }
+
+    function saveMessage(raw: string, machinePath: string) {
+      if (!raw.trim()) return;
+      queue.current.push({ raw, machinePath });
+      void pump();
     }
 
     void ensureListen();

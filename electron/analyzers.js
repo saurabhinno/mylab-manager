@@ -7,11 +7,17 @@ const net = require("net");
 const os = require("os");
 
 const DEFAULT_BAUD = 9600;
+/** Factory Clinitek default. Used only if 9600 bytes are not ASCII. */
+const CLINITEK_FALLBACK_BAUD = 57600;
 /** Avoid 5000 — macOS Control Center often binds it. */
 const DEFAULT_LAN_PORT = 5100;
 const POLL_MS = 2500;
 const ENQ = Buffer.from([0x05]);
 const ACK = Buffer.from([0x06]);
+const NAK = Buffer.from([0x15]);
+const STX = 0x02;
+const ETX = 0x03;
+const ETB = 0x17;
 const EOT = 0x04;
 const VT = 0x0b;
 const FS = 0x1c;
@@ -55,8 +61,11 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
   let lastPortsJson = "[]";
   let openPort = null;
   let openPath = null;
+  let usbOpening = false;
+  let usbReopenTimer = null;
   let rawBuffer = "";
   let lineCarry = "";
+  let baudFlipLocked = false;
   let loadError = SerialPort
     ? null
     : "Serial driver not available. Rebuild desktop deps (serialport).";
@@ -171,12 +180,19 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
         at: new Date().toISOString(),
       });
       // USB serial (Clinitek): one CR-terminated record is a full result.
-      if (/^COM\d+/i.test(String(path)) && line.includes(",")) {
+      const record = line.replace(/[\x02\x03]/g, "");
+      if (/^COM\d+/i.test(String(path)) && record.includes(",")) {
+        log(`Clinitek USB record: ${record.slice(0, 180)}`);
         send("analyzers:message", {
           path,
-          raw: line,
+          raw: record,
           at: new Date().toISOString(),
         });
+        // ACK lets Send All move on to the next stored result.
+        if (openPort && openPort.isOpen) {
+          openPort.write(ACK, () => {});
+          log("Clinitek USB tx ACK");
+        }
       }
     }
     // Also notify that raw bytes arrived (for hex/live view)
@@ -218,13 +234,114 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
         }
         openPort = port;
         openPath = path;
+        let astmCarry = Buffer.alloc(0);
+        let astmRecords = "";
+
+        const reply = (bytes, label) => {
+          if (!port.isOpen) return;
+          port.write(bytes, (writeErr) => {
+            if (writeErr) log(`Clinitek USB ${label} failed`, writeErr);
+            else log(`Clinitek USB tx ${label}`);
+          });
+        };
 
         port.on("data", (buf) => {
-          pushBytes(path, buf.toString("utf8"));
+          try {
+          if (!isIdleNoise(buf)) {
+            const preview = buf
+              .toString("latin1")
+              .replace(/[^\x20-\x7e]/g, ".")
+              .slice(0, 180);
+            log(
+              `Clinitek USB rx ${buf.length}b @ ${baudRate} [${buf.toString("hex")}]: ${preview}`
+            );
+          }
+          if (/^COM\d+/i.test(String(path))) {
+            consumeClinitek(buf);
+            return;
+          }
+          pushBytes(path, buf.toString("latin1"));
+          } catch (err) {
+            log("Clinitek USB read error", err);
+          }
         });
 
+        function consumeClinitek(buf) {
+          if (buf.includes(0x05)) reply(ACK, "ACK");
+          astmCarry = Buffer.concat([astmCarry, buf]);
+          if (astmCarry.length > 200_000) {
+            astmCarry = astmCarry.slice(-100_000);
+          }
+
+          while (astmCarry.length) {
+            const b0 = astmCarry[0];
+            if (b0 === 0x05) {
+              astmCarry = astmCarry.slice(1);
+              continue;
+            }
+            if (b0 === 0x04) {
+              astmCarry = astmCarry.slice(1);
+              const text = astmRecords.trim();
+              astmRecords = "";
+              if (text) {
+                log(`Clinitek USB record: ${text.slice(0, 400)}`);
+                send("analyzers:message", {
+                  path,
+                  raw: text,
+                  at: new Date().toISOString(),
+                });
+              }
+              continue;
+            }
+            if (b0 !== STX) {
+              // Plain CSV record, CR terminated, no ASTM framing.
+              const cr = astmCarry.indexOf(0x0d);
+              if (cr < 0) break;
+              const line = astmCarry.slice(0, cr).toString("latin1");
+              astmCarry = astmCarry.slice(cr + 1);
+              if (astmCarry[0] === 0x0a) astmCarry = astmCarry.slice(1);
+              if (line.includes(",")) {
+                log(`Clinitek USB record: ${line.slice(0, 400)}`);
+                send("analyzers:message", {
+                  path,
+                  raw: line,
+                  at: new Date().toISOString(),
+                });
+              }
+              continue;
+            }
+
+            let marker = -1;
+            for (let i = 1; i < astmCarry.length; i++) {
+              if (astmCarry[i] === ETX || astmCarry[i] === ETB) {
+                marker = i;
+                break;
+              }
+            }
+            if (marker < 0) break;
+            const crlf = astmCarry.indexOf("\r\n", marker);
+            if (crlf < 0) break;
+            const frame = astmCarry.slice(0, crlf + 2);
+            astmCarry = astmCarry.slice(crlf + 2);
+            if (!astmChecksumOk(frame, marker)) {
+              log("Clinitek USB bad checksum, NAK");
+              reply(NAK, "NAK");
+              continue;
+            }
+            const record = frame
+              .slice(2, marker)
+              .toString("latin1")
+              .replace(/\r$/, "");
+            if (record) astmRecords += `${record}\n`;
+            log(`Clinitek USB frame: ${record.slice(0, 180)}`);
+            reply(ACK, "ACK");
+          }
+        }
+
         port.on("error", (e) => {
+          log(`Clinitek USB error on ${path}: ${e.message}`);
           send("analyzers:error", { path, error: e.message });
+          scheduleUsbReopen();
         });
 
         port.on("close", () => {
@@ -233,12 +350,49 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
             openPath = null;
           }
           send("analyzers:closed", { path });
+          scheduleUsbReopen();
         });
+
+        if (typeof port.set === "function") {
+          port.set({ dtr: true, rts: true }, () => {});
+        }
 
         send("analyzers:opened", { path, baudRate });
         resolve({ ok: true, path, baudRate });
       });
     });
+  }
+
+  function astmChecksumOk(frame, marker) {
+    let sum = 0;
+    for (let i = 1; i <= marker; i++) sum = (sum + frame[i]) & 0xff;
+    const got = frame.slice(marker + 1, marker + 3).toString("ascii");
+    const expect = sum.toString(16).toUpperCase().padStart(2, "0");
+    return got.toUpperCase() === expect;
+  }
+
+  function isIdleNoise(buf) {
+    if (!buf || !buf.length) return true;
+    for (const byte of buf) {
+      if (byte !== 0x00 && byte !== 0xfe && byte !== 0xff) return false;
+    }
+    return true;
+  }
+
+  function looksLikeWrongBaud(buf) {
+    if (!buf || buf.length < 12 || isIdleNoise(buf)) return false;
+    let printable = 0;
+    for (const byte of buf) {
+      if (
+        byte === 0x0d ||
+        byte === 0x0a ||
+        byte === 0x09 ||
+        (byte >= 0x20 && byte <= 0x7e)
+      ) {
+        printable += 1;
+      }
+    }
+    return printable / buf.length < 0.6;
   }
 
   function emitMessageComplete(source, text) {
@@ -542,7 +696,16 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
     lineCarry = "";
   }
 
-  /** Open the first FTDI USB serial port (Clinitek Status+ cable) at 9600 8N1. */
+  function scheduleUsbReopen() {
+    if (usbOpening || usbReopenTimer) return;
+    usbReopenTimer = setTimeout(() => {
+      usbReopenTimer = null;
+      if (usbOpening || (openPort && openPort.isOpen)) return;
+      startUsb().catch((err) => log("Clinitek USB reopen failed", err));
+    }, 1500);
+  }
+
+  /** Open the first FTDI USB serial port (Clinitek Status+ cable) at 57600 8N1. */
   async function startUsb() {
     if (!SerialPort) return { ok: false, error: loadError || "No serial driver" };
     if (openPort && openPort.isOpen) {
@@ -555,20 +718,28 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
     });
     if (!ftdi) {
       log("Clinitek USB serial port not found");
+      scheduleUsbReopen();
       return { ok: false, error: "No FTDI serial port" };
     }
+    let openErr = null;
+    usbOpening = true;
     try {
+      baudFlipLocked = false;
       const opened = await openAndListen(ftdi.path, {
-        baudRate: 9600,
+        baudRate: CLINITEK_FALLBACK_BAUD,
         dataBits: 8,
         stopBits: 1,
         parity: "none",
       });
-      log(`Clinitek USB listening on ${ftdi.path} @ 9600`);
+      log(`Clinitek USB listening on ${ftdi.path} @ ${CLINITEK_FALLBACK_BAUD}`);
       return opened;
     } catch (err) {
+      openErr = err;
       log("Clinitek USB open failed", err);
       return { ok: false, error: err && err.message ? err.message : String(err) };
+    } finally {
+      usbOpening = false;
+      if (openErr) scheduleUsbReopen();
     }
   }
 
