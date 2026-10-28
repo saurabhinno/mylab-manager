@@ -1,6 +1,6 @@
 /**
  * Siemens Clinitek Status / Status+ unidirectional LIS record.
- * One CSV line ending in CR. Default serial: 57600 8N1.
+ * One CSV line ending in CR. Serial: 9600 8N1.
  * Fields 0–11 are header; then triples of abbreviation, result, positive-mark.
  */
 

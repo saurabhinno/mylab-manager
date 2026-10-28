@@ -542,7 +542,7 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
     lineCarry = "";
   }
 
-  /** Open the first FTDI USB serial port (Clinitek Status+ cable) at 57600 8N1. */
+  /** Open the first FTDI USB serial port (Clinitek Status+ cable) at 9600 8N1. */
   async function startUsb() {
     if (!SerialPort) return { ok: false, error: loadError || "No serial driver" };
     if (openPort && openPort.isOpen) {
@@ -559,12 +559,12 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
     }
     try {
       const opened = await openAndListen(ftdi.path, {
-        baudRate: 57600,
+        baudRate: 9600,
         dataBits: 8,
         stopBits: 1,
         parity: "none",
       });
-      log(`Clinitek USB listening on ${ftdi.path} @ 57600`);
+      log(`Clinitek USB listening on ${ftdi.path} @ 9600`);
       return opened;
     } catch (err) {
       log("Clinitek USB open failed", err);
