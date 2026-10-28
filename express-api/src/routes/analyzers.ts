@@ -21,6 +21,7 @@ import {
   allocateTodayReportNumber,
   findReportBySampleOrId,
 } from "@/lib/dailyReportNumber";
+import { looksLikeClinitek, parseClinitek } from "@/lib/clinitek";
 
 const router = Router();
 
@@ -92,13 +93,14 @@ async function applyMappedToReport(
     if (!matchedName) continue;
     const target = items.find((it) => it.test_name === matchedName);
     if (!target || seen.has(target.id)) continue;
-    target.result_value = convertAnalyzerValueToLab(
+    const converted = convertAnalyzerValueToLab(
       target.test_name,
       String(m.value),
       m.unit,
       target.unit
     );
-    target.result_type = "numeric";
+    target.result_value = converted;
+    target.result_type = /^-?\d+(\.\d+)?$/.test(converted) ? "numeric" : "text";
     if (m.derivedFromMid) {
       target.note = "Derived from MID (Eos 70% / Mono 25% / Bas 5%)";
     }
@@ -134,6 +136,40 @@ async function findCbcPanel() {
     .sort((a, b) => b.s - a.s || b.p.id - a.p.id);
 
   return ranked[0]?.p || null;
+}
+
+async function findUrinePanel() {
+  const panels = await TestDefinition.findAll({
+    where: { is_panel: true },
+    include: [{ model: TestDefinition, as: "parameters" }],
+  });
+  const score = (name: string) => {
+    const n = normalizeTestName(name);
+    if (n.includes("urineroutine")) return 100;
+    if (n.includes("urine") && n.includes("micro")) return 90;
+    if (n.includes("urine")) return 70;
+    return 0;
+  };
+  const ranked = [...panels]
+    .map((p) => ({ p, s: score(p.name) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => b.s - a.s || b.p.id - a.p.id);
+  return ranked[0]?.p || null;
+}
+
+function instrumentPayload(raw: string, profileId: string) {
+  const cleaned = normalizeInstrumentPayload(raw);
+  if (profileId === "clinitek-status" || looksLikeClinitek(cleaned)) {
+    const parsed = parseClinitek(cleaned);
+    return { format: "clinitek" as const, parsed, cleaned };
+  }
+  const format = looksLikeHl7(cleaned)
+    ? ("hl7" as const)
+    : looksLikeAstm(cleaned)
+      ? ("astm" as const)
+      : ("unknown" as const);
+  const parsed = format === "hl7" ? parseHl7(cleaned) : parseAstm(cleaned);
+  return { format, parsed, cleaned };
 }
 
 async function createCbcReportFromInbox(
@@ -214,20 +250,118 @@ async function createCbcReportFromInbox(
 
   if (row.raw) {
     const profileId = row.profile_id || "cellenium-21";
-    const cleaned = normalizeInstrumentPayload(row.raw);
-    const format = looksLikeHl7(cleaned)
-      ? "hl7"
-      : looksLikeAstm(cleaned)
-        ? "astm"
-        : "unknown";
-    const parsed = format === "hl7" ? parseHl7(cleaned) : parseAstm(cleaned);
-    mapped = mapResults(parsed.results, loadCodeMap(profileId));
-    row.parsed_json = JSON.stringify({ format, parsed, mapped });
+    const pack = instrumentPayload(row.raw, profileId);
+    const mapProfile =
+      pack.format === "clinitek" ? "clinitek-status" : profileId;
+    mapped = mapResults(pack.parsed.results, loadCodeMap(mapProfile));
+    row.parsed_json = JSON.stringify({
+      format: pack.format,
+      parsed: pack.parsed,
+      mapped,
+    });
   }
 
   const applied = await applyMappedToReport(report, mapped);
   row.status = "applied";
   row.applied_report_id = report.id;
+  await row.save();
+
+  return {
+    report_id: report.id,
+    daily_number: report.daily_number,
+    applied,
+    patient_name: patientName,
+    mapped_count: mapped.filter((m) => m.testName).length,
+  };
+}
+
+async function createUrineReportFromInbox(
+  row: AnalyzerInbox,
+  opts: {
+    patient_name?: string | null;
+    age?: number;
+    gender?: string | null;
+    phone?: string | null;
+    referred_by?: string | null;
+  },
+  actor: User
+) {
+  const panel = await findUrinePanel();
+  if (!panel) {
+    throw new Error(
+      "Urine panel not found. Add a panel named like Urine Routine & Microscopy."
+    );
+  }
+
+  const doctor =
+    actor.role === "doctor"
+      ? actor
+      : await User.findOne({ where: { role: "doctor" } });
+  if (!doctor) throw new Error("No doctor account configured");
+
+  const patientName =
+    String(opts.patient_name || row.patient_name || "Unknown").trim() ||
+    "Unknown";
+
+  const { date, daily_number } = await allocateTodayReportNumber();
+  const report = await Report.create({
+    date,
+    daily_number,
+    patient_name: patientName,
+    patient_age: Number(opts.age) || 0,
+    patient_weight: 0,
+    patient_gender: opts.gender || null,
+    patient_phone: opts.phone || null,
+    referred_by: opts.referred_by || null,
+    total_price: panel.price,
+    payment_status: "unpaid",
+    status: "sample_collected",
+    sample_collected_at: new Date(),
+    compounder_id: actor.id,
+    doctor_id: doctor.id,
+  });
+
+  const params = ((panel as any).parameters || []) as TestDefinition[];
+  const ordered = [...params].sort(
+    (a, b) => (a.display_order || 0) - (b.display_order || 0)
+  );
+  for (let i = 0; i < ordered.length; i++) {
+    const param = ordered[i];
+    await ReportItem.create({
+      report_id: report.id,
+      test_definition_id: param.id,
+      test_name: param.name,
+      sample_type: param.sample_type || panel.sample_type || null,
+      result_type: "text",
+      result_value: "",
+      unit: param.unit || null,
+      normal_min: param.default_min,
+      normal_max: param.default_max,
+      note: null,
+      price: 0,
+      panel_name: panel.name,
+      display_order: i + 1,
+    });
+  }
+
+  let mapped =
+    (JSON.parse(row.parsed_json || "{}") as {
+      mapped?: { testName: string | null; value: string }[];
+    }).mapped || [];
+  if (row.raw) {
+    const pack = instrumentPayload(row.raw, "clinitek-status");
+    mapped = mapResults(pack.parsed.results, loadCodeMap("clinitek-status"));
+    row.parsed_json = JSON.stringify({
+      format: pack.format,
+      parsed: pack.parsed,
+      mapped,
+    });
+  }
+
+  const applied = await applyMappedToReport(report, mapped);
+  row.status = "applied";
+  row.applied_report_id = report.id;
+  row.profile_id = "clinitek-status";
   await row.save();
 
   return {
@@ -259,21 +393,16 @@ router.post("/parse", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "raw required" });
     }
     const profileId = String(req.body?.profile_id || "cellenium-21");
-    const cleaned = normalizeInstrumentPayload(raw);
-    const format = looksLikeHl7(cleaned)
-      ? "hl7"
-      : looksLikeAstm(cleaned)
-        ? "astm"
-        : "unknown";
-    const parsed = format === "hl7" ? parseHl7(cleaned) : parseAstm(cleaned);
-    const codeMap = loadCodeMap(profileId);
+    const pack = instrumentPayload(raw, profileId);
+    const mapProfile =
+      pack.format === "clinitek" ? "clinitek-status" : profileId;
     return res.json({
-      format,
-      looksLikeAstm: format === "astm",
-      looksLikeHl7: format === "hl7",
-      parsed,
-      mapped: mapResults(parsed.results, codeMap),
-      profile_id: profileId,
+      format: pack.format,
+      looksLikeAstm: pack.format === "astm",
+      looksLikeHl7: pack.format === "hl7",
+      parsed: pack.parsed,
+      mapped: mapResults(pack.parsed.results, loadCodeMap(mapProfile)),
+      profile_id: mapProfile,
     });
   } catch (error) {
     console.error(error);
@@ -308,45 +437,55 @@ router.post("/inbox", async (req: Request, res: Response) => {
     const machinePath = req.body?.machine_path
       ? String(req.body.machine_path)
       : null;
-    // Default: auto-create CBC report so results appear on the reports list.
     const autoCreate = req.body?.auto_create_report !== false;
-    const cleaned = normalizeInstrumentPayload(raw);
-    const format = looksLikeHl7(cleaned)
-      ? "hl7"
-      : looksLikeAstm(cleaned)
-        ? "astm"
-        : "unknown";
-    const parsed = format === "hl7" ? parseHl7(cleaned) : parseAstm(cleaned);
-    const codeMap = loadCodeMap(profileId);
-    const mapped = mapResults(parsed.results, codeMap);
+    const pack = instrumentPayload(raw, profileId);
+    const mapProfile =
+      pack.format === "clinitek" ? "clinitek-status" : profileId;
+    const mapped = mapResults(pack.parsed.results, loadCodeMap(mapProfile));
 
     const row = await AnalyzerInbox.create({
       machine_path: machinePath,
-      sample_id: parsed.sampleId,
-      patient_name: parsed.patientName,
-      profile_id: profileId,
+      sample_id: pack.parsed.sampleId,
+      patient_name: pack.parsed.patientName,
+      profile_id: mapProfile,
       raw,
-      parsed_json: JSON.stringify({ format, parsed, mapped }),
+      parsed_json: JSON.stringify({
+        format: pack.format,
+        parsed: pack.parsed,
+        mapped,
+      }),
       status: "new",
       received_at: new Date(),
     });
 
-    const hasCbcValues = mapped.some((m) => m.testName && m.value !== "");
-    if (autoCreate && hasCbcValues) {
+    const hasValues = mapped.some((m) => m.testName && m.value !== "");
+    if (autoCreate && hasValues) {
       const userId = getUserIdFromCookie(req.cookies);
       const actor = userId ? await User.findByPk(userId) : null;
       if (actor) {
         try {
-          const created = await createCbcReportFromInbox(
-            row,
-            {
-              patient_name: parsed.patientName,
-              age: req.body?.age,
-              gender: req.body?.gender,
-              phone: req.body?.phone,
-            },
-            actor
-          );
+          const created =
+            pack.format === "clinitek"
+              ? await createUrineReportFromInbox(
+                  row,
+                  {
+                    patient_name: pack.parsed.patientName,
+                    age: req.body?.age,
+                    gender: req.body?.gender,
+                    phone: req.body?.phone,
+                  },
+                  actor
+                )
+              : await createCbcReportFromInbox(
+                  row,
+                  {
+                    patient_name: pack.parsed.patientName,
+                    age: req.body?.age,
+                    gender: req.body?.gender,
+                    phone: req.body?.phone,
+                  },
+                  actor
+                );
           await row.reload();
           return res.json({
             ...row.toJSON(),
@@ -444,17 +583,31 @@ router.post("/inbox/:id/create-report", async (req: Request, res: Response) => {
     const actor = userId ? await User.findByPk(userId) : null;
     if (!actor) return res.status(401).json({ error: "Not authenticated" });
 
-    const created = await createCbcReportFromInbox(
-      row,
-      {
-        patient_name: req.body?.patient_name,
-        age: req.body?.age,
-        gender: req.body?.gender,
-        phone: req.body?.phone,
-        referred_by: req.body?.referred_by,
-      },
-      actor
-    );
+    const urine =
+      row.profile_id === "clinitek-status" || looksLikeClinitek(row.raw || "");
+    const created = urine
+      ? await createUrineReportFromInbox(
+          row,
+          {
+            patient_name: req.body?.patient_name,
+            age: req.body?.age,
+            gender: req.body?.gender,
+            phone: req.body?.phone,
+            referred_by: req.body?.referred_by,
+          },
+          actor
+        )
+      : await createCbcReportFromInbox(
+          row,
+          {
+            patient_name: req.body?.patient_name,
+            age: req.body?.age,
+            gender: req.body?.gender,
+            phone: req.body?.phone,
+            referred_by: req.body?.referred_by,
+          },
+          actor
+        );
 
     return res.json({ success: true, ...created });
   } catch (error: any) {

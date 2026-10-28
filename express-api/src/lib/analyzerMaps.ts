@@ -226,6 +226,31 @@ export const ANALYZER_PROFILES: AnalyzerProfile[] = [
     protocolHint: "Generic ASTM E1394 / CLSI LIS02 over serial.",
     codes: CBC_3PART_CODES,
   },
+  {
+    id: "clinitek-status",
+    label: "Clinitek Status+",
+    defaultBaud: 57600,
+    protocolHint:
+      "USB serial (FTDI, often COM6). Analyzer Connectivity: Computer, 57600 baud, 8 data bits, no parity, 1 stop. Run a urine strip — MyLab creates a Urine Routine report.",
+    codes: {
+      GLU: "Glucose",
+      BIL: "Bilirubin",
+      KET: "Ketones",
+      SG: "Specific Gravity",
+      BLO: "Blood",
+      pH: "pH",
+      PRO: "Protein",
+      URO: "Urobilinogen",
+      NIT: "Nitrite",
+      LEU: "Leukocytes",
+      ALB: "ALB",
+      CRE: "Creat",
+      "A:C": "A:C",
+      "P:C": "A:C",
+      COL: "Color",
+      CLA: "Appearance",
+    },
+  },
 ];
 
 export function getProfile(id?: string | null): AnalyzerProfile {

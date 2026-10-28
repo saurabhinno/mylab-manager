@@ -581,6 +581,19 @@ function initAnalyzers() {
       }
     })
     .catch((err) => log("LAN auto-listen error", err));
+
+  if (typeof analyzers.startUsb === "function") {
+    analyzers
+      .startUsb()
+      .then((res) => {
+        if (res && res.ok) {
+          log(`Clinitek USB open on ${res.path || "FTDI"}`);
+        } else {
+          log("Clinitek USB not opened", res && res.error);
+        }
+      })
+      .catch((err) => log("Clinitek USB error", err));
+  }
 }
 
 /**

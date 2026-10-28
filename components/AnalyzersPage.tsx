@@ -181,7 +181,7 @@ export default function AnalyzersPage({
           const shown =
             saved.daily_number || saved.report_id;
           appendLog(
-            `Auto-created CBC report #${shown} · ${saved.patient_name || "patient"} · applied ${saved.applied ?? "?"}`
+            `Auto-created report #${shown} · ${saved.patient_name || "patient"} · applied ${saved.applied ?? "?"}`
           );
           setAlert({
             type: "success",

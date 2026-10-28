@@ -170,6 +170,14 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
         chunk: line,
         at: new Date().toISOString(),
       });
+      // USB serial (Clinitek): one CR-terminated record is a full result.
+      if (/^COM\d+/i.test(String(path)) && line.includes(",")) {
+        send("analyzers:message", {
+          path,
+          raw: line,
+          at: new Date().toISOString(),
+        });
+      }
     }
     // Also notify that raw bytes arrived (for hex/live view)
     send("analyzers:raw", {
@@ -534,6 +542,36 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
     lineCarry = "";
   }
 
+  /** Open the first FTDI USB serial port (Clinitek Status+ cable) at 57600 8N1. */
+  async function startUsb() {
+    if (!SerialPort) return { ok: false, error: loadError || "No serial driver" };
+    if (openPort && openPort.isOpen) {
+      return { ok: true, path: openPath, already: true };
+    }
+    const ports = await listPorts();
+    const ftdi = ports.find((p) => {
+      const id = `${p.vendorId || ""} ${p.manufacturer || ""} ${p.pnpId || ""}`;
+      return /0403|ftdi/i.test(id);
+    });
+    if (!ftdi) {
+      log("Clinitek USB serial port not found");
+      return { ok: false, error: "No FTDI serial port" };
+    }
+    try {
+      const opened = await openAndListen(ftdi.path, {
+        baudRate: 57600,
+        dataBits: 8,
+        stopBits: 1,
+        parity: "none",
+      });
+      log(`Clinitek USB listening on ${ftdi.path} @ 57600`);
+      return opened;
+    } catch (err) {
+      log("Clinitek USB open failed", err);
+      return { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+  }
+
   return {
     listPorts,
     startPolling,
@@ -541,6 +579,7 @@ function createAnalyzerService({ log = console.log, getMainWindow } = {}) {
     openAndListen,
     closeActive,
     startLan,
+    startUsb,
     stopLan,
     probeHost,
     connectLan,
