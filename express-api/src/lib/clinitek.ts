@@ -60,7 +60,7 @@ export function parseClinitek(raw: string): ClinitekParse {
 
   let i = fields.findIndex((f) => isCode(f));
   if (i < 0) {
-    return { sampleId: null, patientName: null, results };
+    return { sampleId: null, patientName: null, testedAt: null, results };
   }
 
   // Color and clarity sit immediately before the first reagent code.
