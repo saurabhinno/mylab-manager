@@ -167,9 +167,10 @@ export default function DoctorReportViewPage() {
 
         {/* Preview only — edit patient/tests/results via Edit */}
         {pages.map((page, pageIdx) => {
-          const compact = page.items.length > 12;
+          const dense = page.items.length > 18;
+          const compact = !dense && page.items.length > 12;
           return (
-          <Box key={pageIdx} className={`report-page${compact ? " report-page--compact" : ""}`} sx={{
+          <Box key={pageIdx} className={`report-page${dense ? " report-page--dense" : compact ? " report-page--compact" : ""}`} sx={{
             width: 794,
             minHeight: 1123,
             mb: 3,
@@ -222,15 +223,15 @@ export default function DoctorReportViewPage() {
             </Box>
 
             {/* BODY */}
-            <Box className="report-body" sx={{ flexGrow: 1, px: 5, py: 2 }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
+            <Box className="report-body" sx={{ flexGrow: 1, px: 5, py: dense ? 1 : 2 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: dense ? 0.75 : 1.5 }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, fontSize: 12 }}>Report #{reportDisplayNumber(report)}</Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>
                   Date: {new Date(report.date).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
                 </Typography>
               </Box>
 
-              <Box sx={{ bgcolor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 1, px: 2.5, py: 1.5, mb: 2 }}>
+              <Box className="report-patient" sx={{ bgcolor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 1, px: 2.5, py: dense ? 0.75 : 1.5, mb: dense ? 1 : 2 }}>
                 <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 1.5 }}>
                   <Box>
                     <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10, textTransform: "uppercase", fontWeight: 600 }}>Patient Name</Typography>
@@ -251,7 +252,7 @@ export default function DoctorReportViewPage() {
                 </Box>
               </Box>
 
-              <Typography className="report-test-title" sx={{ fontSize: 18, fontWeight: 700, color: "#0f4c81", mb: 1.5, borderBottom: "2px solid #0f4c81", pb: 0.5 }}>
+              <Typography className="report-test-title" sx={{ fontSize: dense ? 16 : 18, fontWeight: 700, color: "#0f4c81", mb: dense ? 0.75 : 1.5, borderBottom: "2px solid #0f4c81", pb: 0.5 }}>
                 {page.title}
               </Typography>
 
@@ -276,7 +277,7 @@ export default function DoctorReportViewPage() {
                       return (
                         <TableRow key={item.id} sx={{
                           bgcolor: abnormal ? "#fef2f2" : idx % 2 === 0 ? "#fff" : "#f8fafc",
-                          "& td": { fontSize: 15, py: compact ? 0.55 : 1, borderBottom: "1px solid #e2e8f0" },
+                          "& td": { fontSize: dense ? 13.5 : 15, py: dense ? 0.4 : compact ? 0.55 : 1, borderBottom: "1px solid #e2e8f0" },
                         }}>
                           <TableCell sx={{ fontWeight: 500 }}>{item.test_name}</TableCell>
                           <TableCell align="center" sx={{ fontWeight: 700, color: abnormal ? "#dc2626" : "#1a2332", fontSize: 16 }}>
@@ -306,7 +307,7 @@ export default function DoctorReportViewPage() {
                 "@media print": { mt: "auto !important", pb: "5px !important" },
               }}
             >
-              <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+              <Box className="report-sign-row" sx={{ display: "flex", justifyContent: "flex-end", mb: dense ? 0.5 : 2 }}>
                 <Box className="report-sign-block" sx={{ textAlign: "center", minWidth: 180 }}>
                   {report.doctor?.signature_image ? (
                     <Box
@@ -314,10 +315,10 @@ export default function DoctorReportViewPage() {
                       className="report-sign-image"
                       src={report.doctor.signature_image}
                       alt="Signature"
-                      sx={{ height: 48, mb: 0.5, objectFit: "contain" }}
+                      sx={{ height: dense ? 36 : 48, mb: 0.5, objectFit: "contain" }}
                     />
                   ) : (
-                    <Box sx={{ height: 48, mb: 0.5 }} />
+                    <Box className="report-sign-image" sx={{ height: dense ? 36 : 48, mb: 0.5 }} />
                   )}
                   <Divider />
                   <Typography className="report-sign-name" variant="body2" sx={{ fontWeight: 600, mt: 0.5, fontSize: 12 }}>
