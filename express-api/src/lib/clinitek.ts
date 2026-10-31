@@ -136,13 +136,21 @@ export function parseClinitekAstm(raw: string): ClinitekParse {
     const kind = (fields[2] || "").split("^")[0].trim().toLowerCase();
     if (kind === "p") {
       const stamp = (fields[3] || "").trim();
-      const seq = (fields[2] || "").split("^")[1] || "";
       testedAt = stampToDate(stamp);
-      sampleId = stamp && seq ? `${stamp}:${seq}` : seq || stamp || null;
-      const nameParts = (fields[4] || "").split("^").map((p) => p.trim()).filter(Boolean);
-      const name = nameParts.length > 1 ? nameParts.slice(1).join(" ") : nameParts[0] || "";
-      patientName = name || null;
       const demo = (fields[5] || "").split("^").map(cleanAstmText);
+      // Patient ID is the first part of the name field: 1^SAURABH^^
+      // Older strips use a letter marker instead: H^AMBAB^^
+      const idAndName = (fields[4] || "").split("^").map((p) => p.trim());
+      const enteredId = idAndName[0] || "";
+      if (/^\d+$/.test(enteredId)) {
+        sampleId = String(Number(enteredId));
+        patientName = idAndName.slice(1).filter(Boolean).join(" ") || null;
+      } else {
+        const nameParts = idAndName.filter(Boolean);
+        const name = nameParts.length > 1 ? nameParts.slice(1).join(" ") : nameParts[0] || "";
+        patientName = name || null;
+        sampleId = null;
+      }
       const color = demo[1] || "";
       const clarity = demo[2] || "";
       if (color) results.push({ code: "COL", value: color, unit: null });

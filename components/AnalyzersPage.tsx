@@ -177,15 +177,15 @@ export default function AnalyzersPage({
             );
           }
         }
-        if (saved.auto_created && saved.report_id) {
+        if (saved.attached && saved.report_id) {
           const shown =
             saved.daily_number || saved.report_id;
           appendLog(
-            `Auto-created report #${shown} · ${saved.patient_name || "patient"} · applied ${saved.applied ?? "?"}`
+            `Attached to report #${shown} · ${saved.patient_name || "patient"} · applied ${saved.applied ?? "?"}`
           );
           setAlert({
             type: "success",
-            msg: `CBC report #${shown} created — open Reports to edit/print`,
+            msg: `Results attached to report #${shown}`,
           });
           window.dispatchEvent(
             new CustomEvent("mylab:report-created", {

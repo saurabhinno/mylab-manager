@@ -8,8 +8,8 @@ const PROFILE_ID = "cellenium-21";
 
 /**
  * Desktop: keep LAN HL7 listen up after login.
- * Incoming machine messages are saved to inbox and auto-create a CBC report
- * (patient name + prefilled results) so they appear on the reports list.
+ * Incoming machine messages are matched to a registered report by ID.
+ * The name must match, then CBC or urine results are attached.
  */
 export default function AnalyzerLanBridge() {
   const saving = useRef(false);
@@ -42,7 +42,7 @@ export default function AnalyzerLanBridge() {
             raw: next.raw,
             profile_id: PROFILE_ID,
             machine_path: next.machinePath,
-            auto_create_report: true,
+            auto_create_report: false,
           }),
         });
         if (res.ok) {

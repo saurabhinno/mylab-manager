@@ -34,13 +34,13 @@ const CBC_3PART_CODES: Record<string, string> = {
   PLT: "PLATELET COUNT (PLT)",
   PLATELET: "PLATELET COUNT (PLT)",
   MPV: "MPV",
-  PDW: "PDW",
-  "PDW-CV": "PDW",
-  PDW_CV: "PDW",
-  "PDW-SD": "PDW",
-  PDW_SD: "PDW",
-  PDWCV: "PDW",
-  PDWSD: "PDW",
+  PDW: "PDW-CV",
+  "PDW-CV": "PDW-CV",
+  PDW_CV: "PDW-CV",
+  PDWCV: "PDW-CV",
+  "PDW-SD": "PDW-SD",
+  PDW_SD: "PDW-SD",
+  PDWSD: "PDW-SD",
   PCT: "PCT",
   "LYM%": "LYMPHOCYTES",
   "LYMPH%": "LYMPHOCYTES",
@@ -85,9 +85,12 @@ function normalizeAnalyzerCode(code: string) {
 }
 
 function formatSplitValue(n: number, absolute: boolean): string {
-  if (absolute) return String(Math.round(n));
-  const rounded = Math.round(n * 10) / 10;
-  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  // Absolute MID is still in the machine's ×10³ scale. Keep the fraction so
+  // convertAnalyzerValueToLab can turn 0.28 into 280 cells/µL.
+  const places = absolute ? 100 : 10;
+  const rounded = Math.round(n * places) / places;
+  if (Number.isInteger(rounded)) return String(rounded);
+  return rounded.toFixed(absolute ? 2 : 1);
 }
 
 export type MappedAnalyzerResult = {
@@ -126,21 +129,21 @@ export function expandMidCellResults(
     }
     out.push({
       code: m.code,
-      testName: "EOSINOPHIL",
+      testName: isAbs ? "Absolute Eosinophil Count" : "EOSINOPHIL",
       value: formatSplitValue(n * MID_CELL_SPLIT.eosinophil, isAbs),
       unit: m.unit,
       derivedFromMid: true,
     });
     out.push({
       code: m.code,
-      testName: "MONOCYTES",
+      testName: isAbs ? "Absolute Monocyte Count" : "MONOCYTES",
       value: formatSplitValue(n * MID_CELL_SPLIT.monocyte, isAbs),
       unit: m.unit,
       derivedFromMid: true,
     });
     out.push({
       code: m.code,
-      testName: "BASOPHILS",
+      testName: isAbs ? "Absolute Basophil Count" : "BASOPHILS",
       value: formatSplitValue(n * MID_CELL_SPLIT.basophil, isAbs),
       unit: m.unit,
       derivedFromMid: true,
@@ -167,11 +170,14 @@ const NAME_ALIASES: string[][] = [
   ["eosinophil", "eosinophils", "eos"],
   ["basophil", "basophils", "bas"],
   ["mpv"],
-  ["pdw"],
+  ["pdwcv", "pdw"],
+  ["pdwsd"],
   ["pct"],
   ["absoluteneutrophilcount", "anc"],
   ["absolutelymphocytecount", "alc"],
+  ["absoluteeosinophilcount"],
   ["absolutemonocytecount"],
+  ["absolutebasophilcount"],
 ];
 
 export function normalizeTestName(s: string): string {
@@ -231,7 +237,7 @@ export const ANALYZER_PROFILES: AnalyzerProfile[] = [
     label: "Clinitek Status+",
     defaultBaud: 9600,
     protocolHint:
-      "USB serial (FTDI, often COM6) at 57600 8N1. Run a urine strip — MyLab creates today's Urine Routine report.",
+      "USB serial (FTDI, often COM6) at 57600 8N1. Enter today's report number as the patient ID. MyLab attaches the strip when that report is registered and the name matches.",
     codes: {
       GLU: "Glucose",
       BLD: "Blood",

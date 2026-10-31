@@ -294,6 +294,147 @@ function samePatientName(a: string, b: string): boolean {
   return norm(a) === norm(b) && norm(a).length > 0;
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Safety check: every word the machine sent must appear as a whole word
+ * on the registered report name. "AMAN" matches "Aman Kumar"; "RAJU" does not.
+ */
+function namesMatch(machineName: string | null, reportName: string): boolean {
+  const machineWords = (machineName || "").match(/[A-Za-z]{2,}/g) || [];
+  if (!machineWords.length || !reportName.trim()) return false;
+  return machineWords.every((word) =>
+    new RegExp(`\\b${escapeRegExp(word)}\\b`, "i").test(reportName)
+  );
+}
+
+/** CBC sample id and Clinitek patient id are the day's report number. */
+function machineReportNumber(sampleId: string | null): number | null {
+  const raw = String(sampleId || "").trim();
+  if (!/^\d+$/.test(raw)) return null;
+  const n = Number(raw.replace(/^0+/, "") || "0");
+  if (!Number.isInteger(n) || n <= 0) return null;
+  return n;
+}
+
+async function findTodayRegisteredReport(reportNo: number) {
+  const today = todayDateOnly();
+  const include = [{ model: ReportItem, as: "reportItems" as const }];
+  const byDaily = await Report.findOne({
+    where: { date: today, daily_number: reportNo },
+    include,
+  });
+  if (byDaily) return byDaily;
+  const byId = await Report.findByPk(reportNo, { include });
+  if (byId && String(byId.date).slice(0, 10) === today) return byId;
+  return null;
+}
+
+function panelAlreadyOnReport(items: ReportItem[], panel: TestDefinition): boolean {
+  const name = panel.name || "";
+  if (/urine/i.test(name)) {
+    return items.some((item) => /urine/i.test(item.panel_name || ""));
+  }
+  if (/cbc|blood count/i.test(name)) {
+    return items.some((item) => /cbc|blood count/i.test(item.panel_name || ""));
+  }
+  const key = normalizeTestName(name);
+  return items.some((item) => normalizeTestName(item.panel_name || "") === key);
+}
+
+/** Add the CBC or urine package when the registered report does not have it yet. */
+async function ensurePanelOnReport(
+  report: Report,
+  panel: TestDefinition,
+  resultType: "numeric" | "text"
+) {
+  const full = await Report.findByPk(report.id, {
+    include: [{ model: ReportItem, as: "reportItems" }],
+  });
+  if (!full) return false;
+  const items = ((full as any).reportItems || []) as ReportItem[];
+  if (panelAlreadyOnReport(items, panel)) return false;
+
+  const params = ((panel as any).parameters || []) as TestDefinition[];
+  const ordered = [...params].sort(
+    (a, b) => (a.display_order || 0) - (b.display_order || 0)
+  );
+  const start = items.reduce((max, item) => Math.max(max, item.display_order || 0), 0);
+  for (let i = 0; i < ordered.length; i++) {
+    const param = ordered[i];
+    await ReportItem.create({
+      report_id: full.id,
+      test_definition_id: param.id,
+      test_name: param.name,
+      sample_type: param.sample_type || panel.sample_type || null,
+      result_type: resultType,
+      result_value: "",
+      unit: param.unit || null,
+      normal_min: param.default_min,
+      normal_max: param.default_max,
+      note: null,
+      price: 0,
+      panel_name: panel.name,
+      display_order: start + i + 1,
+    });
+  }
+  full.total_price = Number(full.total_price || 0) + Number(panel.price || 0);
+  await full.save();
+  return true;
+}
+
+async function attachInboxToRegisteredReport(
+  row: AnalyzerInbox,
+  pack: ReturnType<typeof instrumentPayload>,
+  mapped: { testName: string | null; value: string; unit?: string | null }[]
+) {
+  const testedAt = (pack.parsed as { testedAt?: string | null }).testedAt;
+  if (testedAt && testedAt !== todayDateOnly()) {
+    return { attached: false as const, reason: "not-today" as const };
+  }
+  const reportNo = machineReportNumber(pack.parsed.sampleId);
+  if (!reportNo) {
+    return { attached: false as const, reason: "no-id" as const };
+  }
+  const report = await findTodayRegisteredReport(reportNo);
+  if (!report) {
+    return { attached: false as const, reason: "no-report" as const };
+  }
+  if (report.status === "finalized") {
+    return { attached: false as const, reason: "finalized" as const };
+  }
+  if (!namesMatch(pack.parsed.patientName, report.patient_name || "")) {
+    return { attached: false as const, reason: "name" as const };
+  }
+
+  const urine = pack.format === "clinitek";
+  const panel = urine ? await findUrinePanel() : await findCbcPanel();
+  if (!panel) {
+    throw new Error(urine ? "Urine panel not found" : "CBC panel not found");
+  }
+  const packageAdded = await ensurePanelOnReport(
+    report,
+    panel,
+    urine ? "text" : "numeric"
+  );
+  const applied = await applyMappedToReport(report, mapped);
+  row.status = "applied";
+  row.applied_report_id = report.id;
+  row.sample_id = String(reportNo);
+  if (urine) row.profile_id = "clinitek-status";
+  await row.save();
+  return {
+    attached: true as const,
+    report_id: report.id,
+    daily_number: report.daily_number,
+    applied,
+    package_added: packageAdded,
+    patient_name: report.patient_name,
+  };
+}
+
 /** Today's report for this patient that already includes the urine panel. */
 async function findTodayUrineReport(patientName: string) {
   const reports = await Report.findAll({
@@ -424,7 +565,7 @@ async function createUrineReportFromInbox(
   };
 }
 
-export async function importClinitekMessage(raw: string, actor: User) {
+export async function importClinitekMessage(raw: string, _actor: User) {
   const pack = instrumentPayload(raw, "clinitek-status");
   const testedAt = (pack.parsed as { testedAt?: string | null }).testedAt;
   if (testedAt && testedAt !== todayDateOnly()) {
@@ -448,12 +589,9 @@ export async function importClinitekMessage(raw: string, actor: User) {
     status: "new",
     received_at: new Date(),
   });
-  const created = await createUrineReportFromInbox(
-    row,
-    { patient_name: pack.parsed.patientName },
-    actor
-  );
-  return { skipped: null, ...created };
+  const attached = await attachInboxToRegisteredReport(row, pack, mapped);
+  if (!attached.attached) return { skipped: attached.reason };
+  return { skipped: null, ...attached };
 }
 
 router.use(requireAuth);
@@ -520,7 +658,6 @@ router.post("/inbox", async (req: Request, res: Response) => {
     const machinePath = req.body?.machine_path
       ? String(req.body.machine_path)
       : null;
-    const autoCreate = req.body?.auto_create_report !== false;
     const pack = instrumentPayload(raw, profileId);
     const mapProfile =
       pack.format === "clinitek" ? "clinitek-status" : profileId;
@@ -542,43 +679,18 @@ router.post("/inbox", async (req: Request, res: Response) => {
     });
 
     const hasValues = mapped.some((m) => m.testName && m.value !== "");
-    const testedAt = (pack.parsed as { testedAt?: string | null }).testedAt;
-    const isToday = !testedAt || testedAt === todayDateOnly();
-    const actor = (req as any).user as User | undefined;
-    if (autoCreate && hasValues && isToday && actor) {
-        try {
-          const created =
-            pack.format === "clinitek"
-              ? await createUrineReportFromInbox(
-                  row,
-                  {
-                    patient_name: pack.parsed.patientName,
-                    age: req.body?.age,
-                    gender: req.body?.gender,
-                    phone: req.body?.phone,
-                  },
-                  actor
-                )
-              : await createCbcReportFromInbox(
-                  row,
-                  {
-                    patient_name: pack.parsed.patientName,
-                    age: req.body?.age,
-                    gender: req.body?.gender,
-                    phone: req.body?.phone,
-                  },
-                  actor
-                );
-          await row.reload();
-          return res.json({
-            ...row.toJSON(),
-            report_id: created.report_id,
-            applied: created.applied,
-            auto_created: true,
-          });
-        } catch (err) {
-          console.error("Auto-create report failed", err);
-        }
+    if (hasValues) {
+      try {
+        const attached = await attachInboxToRegisteredReport(row, pack, mapped);
+        await row.reload();
+        return res.json({
+          ...row.toJSON(),
+          ...attached,
+          auto_created: false,
+        });
+      } catch (err) {
+        console.error("Attach analyzer result failed", err);
+      }
     }
 
     return res.json(row);
