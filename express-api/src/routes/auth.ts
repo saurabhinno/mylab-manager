@@ -7,12 +7,22 @@ const router = Router();
 
 router.post("/login", async (req: Request, res: Response) => {
   const { email, password } = req.body;
+  const input = String(email || "").trim().toLowerCase();
 
   try {
-    const user = await User.findOne({ where: { email } });
-    if (!user) {
+    if (!input || !password) {
       return res.status(401).json({ error: "Invalid credentials." });
     }
+    const users = await User.findAll();
+    const matches = users.filter((user) => {
+      const stored = String(user.email || "").trim().toLowerCase();
+      const username = stored.split("@")[0];
+      return stored === input || username === input;
+    });
+    if (matches.length !== 1) {
+      return res.status(401).json({ error: "Invalid credentials." });
+    }
+    const user = matches[0];
 
     const valid = await verifyPassword(password, user.password_hash);
     if (!valid) {

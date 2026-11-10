@@ -27,7 +27,7 @@ const translations: Record<string, Record<Lang, string>> = {
   // Login
   "login.title": { en: "Welcome back", hi: "वापस स्वागत है", hinglish: "Welcome Back" },
   "login.subtitle": { en: "Sign in to your account to continue", hi: "जारी रखने के लिए साइन इन करें", hinglish: "Sign in karo continue karne ke liye" },
-  "login.email": { en: "Email address", hi: "ईमेल पता", hinglish: "Email address" },
+  "login.email": { en: "Email or username", hi: "ईमेल या यूज़रनेम", hinglish: "Email ya username" },
   "login.password": { en: "Password", hi: "पासवर्ड", hinglish: "Password" },
   "login.submit": { en: "Sign In", hi: "साइन इन करें", hinglish: "Sign In Karo" },
   "login.signing_in": { en: "Signing in…", hi: "साइन इन हो रहा…", hinglish: "Sign in ho raha…" },

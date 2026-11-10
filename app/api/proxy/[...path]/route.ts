@@ -38,9 +38,13 @@ async function proxy(request: NextRequest, path: string[]) {
   const response = new NextResponse(data, { status: res.status });
   response.headers.set("Content-Type", "application/json");
 
-  // Forward set-cookie from API
-  const setCookie = res.headers.get("set-cookie");
-  if (setCookie) response.headers.set("set-cookie", setCookie);
+  // get() joins Set-Cookie with a comma and splits the Expires date, so the
+  // browser keeps a session cookie and drops it when the app quits.
+  const setCookies =
+    typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
+  for (const cookie of setCookies) {
+    response.headers.append("set-cookie", cookie);
+  }
 
   return response;
 }

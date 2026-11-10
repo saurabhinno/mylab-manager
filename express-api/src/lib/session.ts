@@ -2,7 +2,13 @@ import bcrypt from "bcryptjs";
 import { Response } from "express";
 
 const COOKIE_NAME = "mylab_session";
-const COOKIE_MAX_AGE = 60 * 60 * 24 * 7 * 1000; // 7 days in milliseconds
+
+/** Stay signed in across app restarts until local midnight. */
+function msUntilEndOfLocalDay(now = new Date()) {
+  const end = new Date(now);
+  end.setHours(24, 0, 0, 0);
+  return Math.max(end.getTime() - now.getTime(), 60 * 1000);
+}
 
 export async function hashPassword(password: string) {
   return bcrypt.hash(password, 10);
@@ -24,7 +30,7 @@ export function setSessionCookie(res: Response, userId: number) {
     secure: cookieSecure(),
     sameSite: "lax",
     path: "/",
-    maxAge: COOKIE_MAX_AGE,
+    maxAge: msUntilEndOfLocalDay(),
   });
 }
 

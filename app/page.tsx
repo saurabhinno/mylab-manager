@@ -1,8 +1,12 @@
+"use client";
+
 import Link from "next/link";
-import { Box, Typography, Button } from "@mui/material";
+import { Box, Typography, Button, CircularProgress } from "@mui/material";
 import { LocalHospitalOutlined, ArrowForwardOutlined } from "@mui/icons-material";
+import { useResumeSession } from "@/components/ResumeSession";
 
 export default function Home() {
+  const showSignIn = useResumeSession();
   return (
     <Box sx={{
       minHeight: "100vh",
@@ -23,21 +27,25 @@ export default function Home() {
       <Typography sx={{ opacity: 0.65, mb: 5, maxWidth: 420 }}>
         Streamlined blood test reporting for doctors and lab staff.
       </Typography>
-      <Button
-        variant="contained"
-        component={Link}
-        href="/login"
-        endIcon={<ArrowForwardOutlined />}
-        size="large"
-        sx={{
-          bgcolor: "#fff", color: "#0f4c81", fontWeight: 700,
-          px: 4, py: 1.5, borderRadius: 3,
-          "&:hover": { bgcolor: "#f0f4f8" },
-          background: "#fff",
-        }}
-      >
-        Sign In
-      </Button>
+      {showSignIn ? (
+        <Button
+          variant="contained"
+          component={Link}
+          href="/login"
+          endIcon={<ArrowForwardOutlined />}
+          size="large"
+          sx={{
+            bgcolor: "#fff", color: "#0f4c81", fontWeight: 700,
+            px: 4, py: 1.5, borderRadius: 3,
+            "&:hover": { bgcolor: "#f0f4f8" },
+            background: "#fff",
+          }}
+        >
+          Sign In
+        </Button>
+      ) : (
+        <CircularProgress sx={{ color: "#fff" }} size={28} />
+      )}
     </Box>
   );
 }

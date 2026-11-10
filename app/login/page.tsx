@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box, Paper, Typography, TextField, Button, Alert,
-  InputAdornment, IconButton,
+  InputAdornment, IconButton, CircularProgress,
 } from "@mui/material";
 import {
   EmailOutlined, LockOutlined, VisibilityOutlined,
@@ -12,9 +12,11 @@ import {
 } from "@mui/icons-material";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { useResumeSession } from "@/components/ResumeSession";
 
 export default function LoginPage() {
   const { t } = useI18n();
+  const showSignIn = useResumeSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -82,10 +84,16 @@ export default function LoginPage() {
 
           {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}
 
+          {!showSignIn ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+              <CircularProgress size={28} />
+            </Box>
+          ) : (
           <Box component="form" onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <TextField
               label={t("login.email")}
-              type="email"
+              type="text"
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -123,6 +131,7 @@ export default function LoginPage() {
               {loading ? t("login.signing_in") : t("login.submit")}
             </Button>
           </Box>
+          )}
 
         </Paper>
       </Box>
